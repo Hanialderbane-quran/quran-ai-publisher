@@ -1,0 +1,19 @@
+name: Daily Quran Publisher
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Start publisher
+        run: |
+          echo "Quran AI Publisher started"
+          echo "Preparing daily video..."
