@@ -1,0 +1,3 @@
+Quran AI Publisher Project Setup
+
+First setup file.
