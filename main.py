@@ -1,9 +1,12 @@
 import json
 from datetime import datetime
+from generator.verse_selector import choose_verse
+
 
 def load_config():
     with open("config.json", "r", encoding="utf-8") as file:
         return json.load(file)
+
 
 def start():
     config = load_config()
@@ -11,7 +14,22 @@ def start():
     print("Quran AI Publisher Started")
     print("Channel:", config["channel_name"])
     print("Time:", datetime.now())
-    print("Preparing daily Quran video...")
+
+    print("Selecting daily verse...")
+
+    verse = choose_verse()
+
+    if verse:
+        print("Selected verse:")
+        print("Surah:", verse["surah"])
+        print("Ayah:", verse["ayah"])
+        print("Text:", verse["text"])
+
+        print("Preparing daily Quran video...")
+
+    else:
+        print("No new verses available")
+
 
 if __name__ == "__main__":
     start()
