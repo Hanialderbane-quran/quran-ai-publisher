@@ -13,7 +13,10 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
 
+            - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+
       - name: Start publisher
         run: |
-          echo "Quran AI Publisher started"
-          echo "Preparing daily video..."
+          python main.py
