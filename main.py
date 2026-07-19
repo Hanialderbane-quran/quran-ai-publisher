@@ -19,12 +19,18 @@ def start():
 
     verse = choose_verse()
 
-    if verse:
-    print("Selected verse:")
-    print("Surah:", verse["surah"])
-    print("Ayah:", verse["ayah"])
-    print("Text:", verse["text"])
+    if verse is not None:
+        print("Selected verse:")
+        print("Surah:", verse["surah"])
+        print("Ayah:", verse["ayah"])
+        print("Text:", verse["text"])
 
-    print("Verse saved to memory")
+        print("Verse saved to memory")
+        print("Preparing daily Quran video...")
 
-    print("Preparing daily Quran video...")
+    else:
+        print("No new verses available")
+
+
+if __name__ == "__main__":
+    start()
