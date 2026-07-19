@@ -1,5 +1,7 @@
 import json
 from datetime import datetime
+
+from generator.safety import run_safety_check
 from generator.verse_selector import choose_verse
 
 
@@ -9,9 +11,13 @@ def load_config():
 
 
 def start():
+    print("========== Quran AI Publisher ==========")
+
+    if not run_safety_check():
+        return
+
     config = load_config()
 
-    print("Quran AI Publisher Started")
     print("Channel:", config["channel_name"])
     print("Time:", datetime.now())
 
@@ -19,17 +25,18 @@ def start():
 
     verse = choose_verse()
 
-    if verse is not None:
-        print("Selected verse:")
-        print("Surah:", verse["surah"])
-        print("Ayah:", verse["ayah"])
-        print("Text:", verse["text"])
+    if verse is None:
+        print("No new verses available.")
+        return
 
-        print("Verse saved to memory")
-        print("Preparing daily Quran video...")
+    print("Selected verse")
+    print("------------------------")
+    print("Surah :", verse["surah"])
+    print("Ayah  :", verse["ayah"])
+    print("Text  :", verse["text"])
+    print("------------------------")
 
-    else:
-        print("No new verses available")
+    print("Preparing daily Quran video...")
 
 
 if __name__ == "__main__":
