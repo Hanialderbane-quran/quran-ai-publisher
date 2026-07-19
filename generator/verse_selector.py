@@ -12,6 +12,11 @@ def load_published():
         return json.load(file)
 
 
+def save_published(published):
+    with open("data/published.json", "w", encoding="utf-8") as file:
+        json.dump(published, file, ensure_ascii=False, indent=2)
+
+
 def choose_verse():
     quran = load_quran()
     published = load_published()
@@ -27,16 +32,11 @@ def choose_verse():
     if not available:
         return None
 
-    return random.choice(available)
+    selected = random.choice(available)
 
+    key = f"{selected['surah']} - آية {selected['ayah']}"
 
-if __name__ == "__main__":
-    verse = choose_verse()
+    published.append(key)
+    save_published(published)
 
-    if verse:
-        print("Selected verse:")
-        print(verse["surah"])
-        print("Ayah:", verse["ayah"])
-        print(verse["text"])
-    else:
-        print("No new verses available")
+    return selected
