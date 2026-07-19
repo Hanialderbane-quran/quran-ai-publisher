@@ -29,7 +29,8 @@ def choose_verse():
         if key not in published:
             available.append(verse)
 
-    if not available:
+    if len(available) == 0:
+        print("No available verses")
         return None
 
     selected = random.choice(available)
@@ -38,5 +39,8 @@ def choose_verse():
 
     published.append(key)
     save_published(published)
+
+    print("Memory updated:")
+    print(key)
 
     return selected
