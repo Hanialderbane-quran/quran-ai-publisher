@@ -4,6 +4,7 @@ from datetime import datetime
 from generator.safety import run_safety_check
 from generator.tasks import run_tasks
 from generator.brain import think
+from generator.report_engine import create_report
 
 
 def load_config():
@@ -33,24 +34,10 @@ def start():
     verse = result["verse"]
     seo = result["seo"]
 
-    print("========== TODAY ==========")
-    print(f"Surah : {verse['surah']}")
-    print(f"Ayah  : {verse['ayah']}")
-    print()
-
-    print("Title:")
-    print(seo["title"])
-    print()
-
-    print("Description:")
-    print(seo["description"])
-    print()
-
-    print("Tags:")
-    for tag in seo["tags"]:
-        print("-", tag)
+    create_report(verse, seo)
 
     print()
+    print("Everything is ready.")
     print("Preparing daily Quran video...")
 
 
