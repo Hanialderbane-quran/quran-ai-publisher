@@ -1,4 +1,13 @@
 google-api-python-client
 google-auth
 google-auth-oauthlib
+google-auth-httplib2
 requests
+
+moviepy
+Pillow
+imageio
+imageio-ffmpeg
+numpy
+proglog
+decorator
