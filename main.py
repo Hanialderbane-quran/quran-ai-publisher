@@ -1,10 +1,12 @@
 import json
 from datetime import datetime
 
-from generator.safety import run_safety_check
 from generator.tasks import run_tasks
+from generator.safety import run_safety_check
 from generator.brain import think
 from generator.report_engine import create_report
+from generator.video_engine import build_video
+from generator.quality_engine import validate
 
 
 def load_config():
@@ -13,6 +15,7 @@ def load_config():
 
 
 def start():
+
     print("========== Quran AI Publisher ==========\n")
 
     run_tasks()
@@ -22,8 +25,8 @@ def start():
 
     config = load_config()
 
-    print("Channel:", config["channel_name"])
-    print("Time:", datetime.now())
+    print("Channel :", config["channel_name"])
+    print("Time    :", datetime.now())
     print()
 
     result = think()
@@ -34,11 +37,16 @@ def start():
     verse = result["verse"]
     seo = result["seo"]
 
+    if not validate(verse, seo):
+        return
+
     create_report(verse, seo)
 
+    build_video(verse, seo)
+
     print()
-    print("Everything is ready.")
-    print("Preparing daily Quran video...")
+    print("Publisher finished successfully.")
+    print("Ready for YouTube upload.")
 
 
 if __name__ == "__main__":
