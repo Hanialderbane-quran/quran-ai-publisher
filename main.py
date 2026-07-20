@@ -3,8 +3,7 @@ from datetime import datetime
 
 from generator.safety import run_safety_check
 from generator.tasks import run_tasks
-from generator.verse_selector import choose_verse
-from generator.seo import build_seo
+from generator.brain import think
 
 
 def load_config():
@@ -13,7 +12,7 @@ def load_config():
 
 
 def start():
-    print("========== Quran AI Publisher ==========")
+    print("========== Quran AI Publisher ==========\n")
 
     run_tasks()
 
@@ -26,41 +25,32 @@ def start():
     print("Time:", datetime.now())
     print()
 
-    print("Selecting daily verse...")
+    result = think()
 
-    verse = choose_verse()
-
-    if verse is None:
-        print("No new verses available.")
+    if result is None:
         return
 
-    print()
-    print("Selected verse")
-    print("------------------------")
-    print("Surah :", verse["surah"])
-    print("Ayah  :", verse["ayah"])
-    print("Text  :", verse["text"])
-    print("------------------------")
+    verse = result["verse"]
+    seo = result["seo"]
 
-    seo = build_seo(verse)
-
+    print("========== TODAY ==========")
+    print(f"Surah : {verse['surah']}")
+    print(f"Ayah  : {verse['ayah']}")
     print()
-    print("========== SEO ==========")
+
     print("Title:")
     print(seo["title"])
-
     print()
+
     print("Description:")
     print(seo["description"])
-
     print()
+
     print("Tags:")
     for tag in seo["tags"]:
         print("-", tag)
 
-    print("=========================")
     print()
-
     print("Preparing daily Quran video...")
 
 
