@@ -4,6 +4,7 @@ from datetime import datetime
 from generator.safety import run_safety_check
 from generator.tasks import run_tasks
 from generator.verse_selector import choose_verse
+from generator.seo import build_seo
 
 
 def load_config():
@@ -40,6 +41,24 @@ def start():
     print("Ayah  :", verse["ayah"])
     print("Text  :", verse["text"])
     print("------------------------")
+
+    seo = build_seo(verse)
+
+    print()
+    print("========== SEO ==========")
+    print("Title:")
+    print(seo["title"])
+
+    print()
+    print("Description:")
+    print(seo["description"])
+
+    print()
+    print("Tags:")
+    for tag in seo["tags"]:
+        print("-", tag)
+
+    print("=========================")
     print()
 
     print("Preparing daily Quran video...")
