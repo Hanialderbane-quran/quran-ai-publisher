@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 
 from generator.brain import think
+from generator.progress_engine import mark_segment_completed, record_segment_error
 from generator.quality_engine import validate
 from generator.report_engine import create_report
 from generator.safety import run_safety_check
@@ -17,39 +18,49 @@ def load_config():
 
 def start():
     print("========== Quran AI Publisher ==========")
+    segment_id = None
 
-    run_tasks()
+    try:
+        run_tasks()
 
-    if not run_safety_check():
-        raise RuntimeError("Safety check failed.")
+        if not run_safety_check():
+            raise RuntimeError("Safety check failed.")
 
-    config = load_config()
+        config = load_config()
+        print("Channel:", config["channel_name"])
+        print("Time:", datetime.now())
+        print()
 
-    print("Channel:", config["channel_name"])
-    print("Time:", datetime.now())
-    print()
+        result = think()
+        if result is None:
+            print("Nothing new to render.")
+            return
 
-    result = think()
+        verse = result["verse"]
+        seo = result["seo"]
+        segment_id = verse["segment_id"]
 
-    if result is None:
-        raise RuntimeError("No verse was selected.")
+        if not validate(verse, seo):
+            raise RuntimeError("Quality check failed.")
 
-    verse = result["verse"]
-    seo = result["seo"]
+        create_report(verse, seo)
+        video_path = build_video(verse, seo)
 
-    if not validate(verse, seo):
-        raise RuntimeError("Quality check failed.")
+        if not os.path.exists(video_path):
+            raise RuntimeError("The video was not created.")
 
-    create_report(verse, seo)
+        # Temporary completion point. Move this call to after successful
+        # PRIVATE YouTube upload when the uploader is connected.
+        mark_segment_completed(segment_id)
 
-    video_path = build_video(verse, seo)
+        print("\nVideo ready:", video_path)
+        print("Progress saved successfully.")
+        print("Publisher finished successfully.")
 
-    if not os.path.exists(video_path):
-        raise RuntimeError("The video was not created.")
-
-    print()
-    print("Video ready:", video_path)
-    print("Publisher finished successfully.")
+    except Exception as error:
+        if segment_id:
+            record_segment_error(str(error))
+        raise
 
 
 if __name__ == "__main__":
