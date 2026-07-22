@@ -1,78 +1,55 @@
 import json
+import os
 from datetime import datetime
 
-from generator.tasks import run_tasks
-from generator.safety import run_safety_check
-from generator.assets_manager import check_assets
 from generator.brain import think
 from generator.quality_engine import validate
 from generator.report_engine import create_report
+from generator.safety import run_safety_check
+from generator.tasks import run_tasks
 from generator.video_engine import build_video
-from generator.youtube_engine import upload
-from generator.state_manager import (
-    increase_video_counter,
-    update_last_publish
-)
 
 
 def load_config():
-
     with open("config.json", "r", encoding="utf-8") as file:
-
         return json.load(file)
 
 
 def start():
-
     print("========== Quran AI Publisher ==========")
 
     run_tasks()
 
     if not run_safety_check():
-        return
-
-    if not check_assets():
-        return
+        raise RuntimeError("Safety check failed.")
 
     config = load_config()
 
+    print("Channel:", config["channel_name"])
+    print("Time:", datetime.now())
     print()
-
-    print("Channel :", config["channel_name"])
-
-    print("Time :", datetime.now())
 
     result = think()
 
     if result is None:
-        return
+        raise RuntimeError("No verse was selected.")
 
     verse = result["verse"]
-
     seo = result["seo"]
 
     if not validate(verse, seo):
-        return
+        raise RuntimeError("Quality check failed.")
 
     create_report(verse, seo)
 
-    video = build_video(verse, seo)
+    video_path = build_video(verse, seo)
 
-    upload(video, seo)
-
-    update_last_publish(
-
-        verse["surah"],
-
-        verse["ayah"]
-
-    )
-
-    increase_video_counter()
+    if not os.path.exists(video_path):
+        raise RuntimeError("The video was not created.")
 
     print()
-
-    print("Daily Publisher Finished Successfully")
+    print("Video ready:", video_path)
+    print("Publisher finished successfully.")
 
 
 if __name__ == "__main__":
