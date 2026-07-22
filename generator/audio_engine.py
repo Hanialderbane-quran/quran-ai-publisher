@@ -1,89 +1,254 @@
 """
 Quran AI Publisher
-Audio Engine
-Version 2.0
+Automatic Quran Audio Engine
+Version 3.0
 
-Audio files must be named like:
-
-001_001.mp3
-001_002.mp3
-001_003.mp3
-
-First three digits: Surah number
-Last three digits: Ayah number
+Automatically downloads the exact selected ayah recitation.
+No manual audio upload is required.
 """
 
 import os
+import time
+from pathlib import Path
+
+import requests
 
 
-AUDIO_FOLDER = "assets/audio"
+AUDIO_FOLDER = Path("output/audio")
 
-SUPPORTED_EXTENSIONS = (
-    ".mp3",
-    ".wav",
-    ".m4a",
-    ".aac",
-    ".ogg"
-)
+# Mishary Rashid Alafasy
+RECITER = "ar.alafasy"
 
+AUDIO_QUALITY = 128
 
-def build_audio_filename(surah_number, ayah_number):
-
-    surah_part = str(int(surah_number)).zfill(3)
-    ayah_part = str(int(ayah_number)).zfill(3)
-
-    return f"{surah_part}_{ayah_part}"
+REQUEST_TIMEOUT = 60
+MAX_DOWNLOAD_ATTEMPTS = 3
 
 
-def find_audio_file(verse):
-
-    if "surah_number" not in verse:
-        raise KeyError(
-            "The verse is missing 'surah_number' in data/quran.json."
-        )
-
-    if "ayah" not in verse:
-        raise KeyError(
-            "The verse is missing 'ayah' in data/quran.json."
-        )
-
-    base_name = build_audio_filename(
-        verse["surah_number"],
-        verse["ayah"]
+def ensure_audio_folder():
+    AUDIO_FOLDER.mkdir(
+        parents=True,
+        exist_ok=True
     )
 
-    for extension in SUPPORTED_EXTENSIONS:
 
-        audio_path = os.path.join(
-            AUDIO_FOLDER,
-            base_name + extension
-        )
+def get_global_ayah_number(verse):
 
-        if os.path.isfile(audio_path):
-            return audio_path
+    possible_keys = [
+        "global_ayah",
+        "global_number",
+        "number"
+    ]
 
-    expected = os.path.join(
-        AUDIO_FOLDER,
-        base_name + ".mp3"
+    for key in possible_keys:
+
+        value = verse.get(key)
+
+        if value is not None:
+
+            try:
+                value = int(value)
+
+                if 1 <= value <= 6236:
+                    return value
+
+            except (TypeError, ValueError):
+                pass
+
+    raise KeyError(
+        "The selected verse does not contain a valid "
+        "global Quran ayah number."
     )
 
-    raise FileNotFoundError(
-        "\nAudio file was not found.\n"
-        f"Upload the correct recitation to:\n{expected}\n"
-        "The system will not use random audio because that could "
-        "attach the wrong recitation to the verse."
+
+def create_audio_url(global_ayah_number):
+
+    return (
+        "https://cdn.islamic.network/quran/audio/"
+        f"{AUDIO_QUALITY}/"
+        f"{RECITER}/"
+        f"{global_ayah_number}.mp3"
+    )
+
+
+def validate_downloaded_audio(audio_path):
+
+    if not audio_path.is_file():
+        return False
+
+    file_size = audio_path.stat().st_size
+
+    if file_size < 5000:
+        return False
+
+    with audio_path.open("rb") as file:
+        first_bytes = file.read(16)
+
+    if (
+        first_bytes.startswith(b"<")
+        or first_bytes.startswith(b"{")
+        or first_bytes.startswith(b"[")
+    ):
+        return False
+
+    return True
+
+
+def download_audio(url, audio_path):
+
+    temporary_path = audio_path.with_suffix(
+        ".download"
+    )
+
+    headers = {
+        "User-Agent": (
+            "Quran-AI-Publisher/1.0 "
+            "(GitHub Actions)"
+        )
+    }
+
+    last_error = None
+
+    for attempt in range(
+        1,
+        MAX_DOWNLOAD_ATTEMPTS + 1
+    ):
+
+        print(
+            f"Downloading recitation "
+            f"attempt {attempt}/"
+            f"{MAX_DOWNLOAD_ATTEMPTS}..."
+        )
+
+        try:
+
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+                stream=True
+            )
+
+            response.raise_for_status()
+
+            content_type = (
+                response.headers
+                .get("content-type", "")
+                .lower()
+            )
+
+            if (
+                "text/html" in content_type
+                or "application/json" in content_type
+            ):
+                raise RuntimeError(
+                    "The audio server returned "
+                    f"an invalid content type: "
+                    f"{content_type}"
+                )
+
+            with temporary_path.open(
+                "wb"
+            ) as file:
+
+                for chunk in response.iter_content(
+                    chunk_size=1024 * 64
+                ):
+
+                    if chunk:
+                        file.write(chunk)
+
+            temporary_path.replace(
+                audio_path
+            )
+
+            if validate_downloaded_audio(
+                audio_path
+            ):
+                return audio_path
+
+            audio_path.unlink(
+                missing_ok=True
+            )
+
+            raise RuntimeError(
+                "The downloaded audio file "
+                "is invalid or empty."
+            )
+
+        except (
+            requests.RequestException,
+            RuntimeError,
+            OSError
+        ) as error:
+
+            last_error = error
+
+            temporary_path.unlink(
+                missing_ok=True
+            )
+
+            audio_path.unlink(
+                missing_ok=True
+            )
+
+            if attempt < MAX_DOWNLOAD_ATTEMPTS:
+                time.sleep(attempt * 2)
+
+    raise RuntimeError(
+        "Failed to download the Quran "
+        f"recitation after "
+        f"{MAX_DOWNLOAD_ATTEMPTS} attempts. "
+        f"Last error: {last_error}"
     )
 
 
 def get_audio(verse):
 
-    os.makedirs(AUDIO_FOLDER, exist_ok=True)
+    ensure_audio_folder()
 
-    audio_path = find_audio_file(verse)
+    global_ayah_number = (
+        get_global_ayah_number(verse)
+    )
+
+    audio_path = AUDIO_FOLDER / (
+        f"{global_ayah_number}.mp3"
+    )
+
+    if validate_downloaded_audio(
+        audio_path
+    ):
+
+        print()
+        print("========== AUDIO ==========")
+        print("Using cached recitation")
+        print("Ayah:", global_ayah_number)
+        print("File:", audio_path)
+        print("===========================")
+
+        return str(audio_path)
+
+    audio_url = create_audio_url(
+        global_ayah_number
+    )
 
     print()
     print("========== AUDIO ==========")
-    print("Audio:", audio_path)
+    print("Reciter:", RECITER)
+    print(
+        "Global ayah:",
+        global_ayah_number
+    )
     print("===========================")
 
-    return audio_path
+    download_audio(
+        audio_url,
+        audio_path
+    )
+
+    print(
+        "Recitation downloaded:",
+        audio_path
+    )
+
+    return str(audio_path)
