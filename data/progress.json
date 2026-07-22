@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "mode": "complete_quran",
+  "last_completed_global_ayah": 0,
+  "pending_segment": null,
+  "completed_quran_cycles": 0,
+  "last_completed_at": null,
+  "last_error": null
+}
