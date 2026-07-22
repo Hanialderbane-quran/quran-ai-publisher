@@ -1,16 +1,20 @@
 """
 Quran AI Publisher
-Safe Quran Segment Audio Engine
-Version 4.0
+Safe Audio Engine
+Version 5.0
 
-Downloads and merges consecutive ayah audio files.
-Blocks all unapproved reciters and unverified sources.
+TEST MODE:
+Creates silent audio only for testing video generation.
+It does not use any reciter recording.
 """
 
 import json
+import math
 import os
+import struct
 import subprocess
 import time
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -22,19 +26,37 @@ RECITERS_FILE = "data/reciters.json"
 AUDIO_FOLDER = Path("output/audio")
 TEMP_FOLDER = AUDIO_FOLDER / "temporary"
 
+# خليه True حاليًا حتى نختبر المشروع بدون صوت قارئ.
+TEST_MODE = True
+
 REQUEST_TIMEOUT = 60
 MAX_DOWNLOAD_ATTEMPTS = 3
 MINIMUM_AUDIO_SIZE = 5000
 
+SAMPLE_RATE = 44100
+CHANNELS = 1
+SAMPLE_WIDTH = 2
 
-def load_json(path: str, default: Any) -> Any:
+
+def load_json(
+    path: str,
+    default: Any
+) -> Any:
     if not os.path.exists(path):
         return default
 
     try:
-        with open(path, "r", encoding="utf-8") as file:
+        with open(
+            path,
+            "r",
+            encoding="utf-8"
+        ) as file:
             return json.load(file)
-    except (OSError, json.JSONDecodeError) as error:
+
+    except (
+        OSError,
+        json.JSONDecodeError
+    ) as error:
         raise RuntimeError(
             f"Could not read JSON file: {path}. "
             f"Error: {error}"
@@ -53,13 +75,230 @@ def ensure_audio_folders() -> None:
     )
 
 
+def estimate_ayah_duration(
+    ayah: dict
+) -> float:
+    text = str(
+        ayah.get(
+            "text",
+            ""
+        )
+    ).strip()
+
+    word_count = len(
+        text.split()
+    )
+
+    return max(
+        2.5,
+        word_count * 0.55
+    )
+
+
+def estimate_segment_duration(
+    segment: dict
+) -> float:
+    ayahs = segment.get(
+        "ayahs",
+        []
+    )
+
+    if not isinstance(
+        ayahs,
+        list
+    ) or not ayahs:
+        return 8.0
+
+    estimated = sum(
+        estimate_ayah_duration(
+            ayah
+        )
+        for ayah in ayahs
+    )
+
+    video_type = segment.get(
+        "video_type",
+        "short"
+    )
+
+    if video_type == "long":
+        return max(
+            30.0,
+            estimated
+        )
+
+    return max(
+        8.0,
+        estimated
+    )
+
+
+def create_silent_wav(
+    output_path: Path,
+    duration: float
+) -> Path:
+    duration = max(
+        1.0,
+        float(duration)
+    )
+
+    frame_count = int(
+        SAMPLE_RATE * duration
+    )
+
+    silence_sample = struct.pack(
+        "<h",
+        0
+    )
+
+    chunk_frames = SAMPLE_RATE
+    written_frames = 0
+
+    with wave.open(
+        str(output_path),
+        "wb"
+    ) as audio_file:
+        audio_file.setnchannels(
+            CHANNELS
+        )
+
+        audio_file.setsampwidth(
+            SAMPLE_WIDTH
+        )
+
+        audio_file.setframerate(
+            SAMPLE_RATE
+        )
+
+        while written_frames < frame_count:
+            current_frames = min(
+                chunk_frames,
+                frame_count
+                - written_frames
+            )
+
+            audio_file.writeframes(
+                silence_sample
+                * current_frames
+            )
+
+            written_frames += (
+                current_frames
+            )
+
+    if (
+        not output_path.is_file()
+        or output_path.stat().st_size
+        < 1000
+    ):
+        raise RuntimeError(
+            "Could not create silent test audio."
+        )
+
+    return output_path
+
+
+def create_test_audio(
+    segment: dict
+) -> str:
+    ensure_audio_folders()
+
+    segment_id = str(
+        segment.get(
+            "segment_id",
+            "test_segment"
+        )
+    ).strip()
+
+    if not segment_id:
+        segment_id = "test_segment"
+
+    duration = estimate_segment_duration(
+        segment
+    )
+
+    output_path = AUDIO_FOLDER / (
+        f"{segment_id}_test_silence.wav"
+    )
+
+    if (
+        output_path.is_file()
+        and output_path.stat().st_size
+        > 1000
+    ):
+        print()
+        print(
+            "========== TEST AUDIO =========="
+        )
+        print(
+            "Using cached silent test audio."
+        )
+        print(
+            "Duration:",
+            round(
+                duration,
+                2
+            ),
+            "seconds"
+        )
+        print(
+            "File:",
+            output_path
+        )
+        print(
+            "================================"
+        )
+
+        return str(
+            output_path
+        )
+
+    create_silent_wav(
+        output_path=output_path,
+        duration=duration
+    )
+
+    print()
+    print(
+        "========== TEST AUDIO =========="
+    )
+    print(
+        "TEST MODE is enabled."
+    )
+    print(
+        "No reciter recording is being used."
+    )
+    print(
+        "Silent audio duration:",
+        round(
+            duration,
+            2
+        ),
+        "seconds"
+    )
+    print(
+        "File:",
+        output_path
+    )
+    print(
+        "================================"
+    )
+
+    return str(
+        output_path
+    )
+
+
 def load_reciter_config() -> dict:
     data = load_json(
         RECITERS_FILE,
         {}
     )
 
-    if not isinstance(data, dict):
+    if not isinstance(
+        data,
+        dict
+    ):
         raise RuntimeError(
             "data/reciters.json must contain an object."
         )
@@ -84,16 +323,26 @@ def load_reciter_config() -> dict:
             "inside data/reciters.json."
         )
 
-    reciter = reciters[selected_reciter]
+    reciter = dict(
+        reciters[
+            selected_reciter
+        ]
+    )
 
-    validate_reciter(reciter)
+    validate_reciter(
+        reciter
+    )
 
-    reciter["id"] = selected_reciter
+    reciter["id"] = (
+        selected_reciter
+    )
 
     return reciter
 
 
-def validate_reciter(reciter: dict) -> None:
+def validate_reciter(
+    reciter: dict
+) -> None:
     required_fields = [
         "name",
         "source_name",
@@ -106,18 +355,24 @@ def validate_reciter(reciter: dict) -> None:
     for field in required_fields:
         if field not in reciter:
             raise RuntimeError(
-                f"Reciter configuration is missing: {field}"
+                "Reciter configuration is missing: "
+                f"{field}"
             )
 
-    if reciter.get("approved") is not True:
+    if reciter.get(
+        "approved"
+    ) is not True:
         raise RuntimeError(
-            "Audio blocked: this reciter has not been approved."
+            "Audio blocked: this reciter "
+            "has not been approved."
         )
 
-    if reciter.get("license_verified") is not True:
+    if reciter.get(
+        "license_verified"
+    ) is not True:
         raise RuntimeError(
-            "Audio blocked: the reuse license has not "
-            "been verified."
+            "Audio blocked: the reuse license "
+            "has not been verified."
         )
 
     claim_history = str(
@@ -132,8 +387,8 @@ def validate_reciter(reciter: dict) -> None:
         "clear"
     }:
         raise RuntimeError(
-            "Audio blocked because its copyright-claim "
-            "history is not clear."
+            "Audio blocked because its "
+            "copyright-claim history is not clear."
         )
 
     url_template = str(
@@ -143,23 +398,36 @@ def validate_reciter(reciter: dict) -> None:
         )
     )
 
-    if "{global_number}" not in url_template:
+    if (
+        "{global_number}"
+        not in url_template
+    ):
         raise RuntimeError(
             "The audio URL template must contain "
             "{global_number}."
         )
 
 
-def validate_audio_file(path: Path) -> bool:
+def validate_audio_file(
+    path: Path
+) -> bool:
     if not path.is_file():
         return False
 
-    if path.stat().st_size < MINIMUM_AUDIO_SIZE:
+    if (
+        path.stat().st_size
+        < MINIMUM_AUDIO_SIZE
+    ):
         return False
 
     try:
-        with path.open("rb") as file:
-            first_bytes = file.read(20)
+        with path.open(
+            "rb"
+        ) as file:
+            first_bytes = file.read(
+                20
+            )
+
     except OSError:
         return False
 
@@ -171,13 +439,17 @@ def validate_audio_file(path: Path) -> bool:
         b"<?xml"
     )
 
-    if first_bytes.startswith(invalid_starts):
+    if first_bytes.startswith(
+        invalid_starts
+    ):
         return False
 
     return True
 
 
-def get_global_number(ayah: dict) -> int:
+def get_global_number(
+    ayah: dict
+) -> int:
     possible_keys = [
         "global_number",
         "global_ayah",
@@ -185,21 +457,30 @@ def get_global_number(ayah: dict) -> int:
     ]
 
     for key in possible_keys:
-        value = ayah.get(key)
+        value = ayah.get(
+            key
+        )
 
         if value is None:
             continue
 
         try:
-            number = int(value)
-        except (TypeError, ValueError):
+            number = int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError
+        ):
             continue
 
         if 1 <= number <= 6236:
             return number
 
     raise RuntimeError(
-        "Ayah does not contain a valid global number."
+        "Ayah does not contain a valid "
+        "global number."
     )
 
 
@@ -207,7 +488,9 @@ def create_audio_url(
     reciter: dict,
     global_number: int
 ) -> str:
-    return reciter["url_template"].format(
+    return reciter[
+        "url_template"
+    ].format(
         global_number=global_number
     )
 
@@ -216,13 +499,15 @@ def download_audio(
     url: str,
     destination: Path
 ) -> Path:
-    temporary_path = destination.with_suffix(
-        ".download"
+    temporary_path = (
+        destination.with_suffix(
+            ".download"
+        )
     )
 
     headers = {
         "User-Agent": (
-            "Quran-AI-Publisher/4.0 "
+            "Quran-AI-Publisher/5.0 "
             "(GitHub Actions)"
         )
     }
@@ -233,13 +518,6 @@ def download_audio(
         1,
         MAX_DOWNLOAD_ATTEMPTS + 1
     ):
-        print(
-            "Downloading audio:",
-            destination.name,
-            f"attempt {attempt}/"
-            f"{MAX_DOWNLOAD_ATTEMPTS}"
-        )
-
         try:
             response = requests.get(
                 url,
@@ -252,46 +530,53 @@ def download_audio(
 
             content_type = (
                 response.headers
-                .get("content-type", "")
+                .get(
+                    "content-type",
+                    ""
+                )
                 .lower()
             )
 
-            blocked_types = [
-                "text/html",
-                "application/json",
-                "text/plain"
-            ]
-
             if any(
                 blocked in content_type
-                for blocked in blocked_types
+                for blocked in [
+                    "text/html",
+                    "application/json",
+                    "text/plain"
+                ]
             ):
                 raise RuntimeError(
-                    "Audio server returned invalid type: "
-                    f"{content_type}"
+                    "Audio server returned "
+                    f"invalid type: {content_type}"
                 )
 
             with temporary_path.open(
                 "wb"
             ) as file:
-                for chunk in response.iter_content(
-                    chunk_size=1024 * 64
+                for chunk in (
+                    response.iter_content(
+                        chunk_size=1024 * 64
+                    )
                 ):
                     if chunk:
-                        file.write(chunk)
+                        file.write(
+                            chunk
+                        )
 
             os.replace(
                 temporary_path,
                 destination
             )
 
-            if not validate_audio_file(destination):
+            if not validate_audio_file(
+                destination
+            ):
                 destination.unlink(
                     missing_ok=True
                 )
 
                 raise RuntimeError(
-                    "Downloaded audio is invalid or empty."
+                    "Downloaded audio is invalid."
                 )
 
             return destination
@@ -311,8 +596,13 @@ def download_audio(
                 missing_ok=True
             )
 
-            if attempt < MAX_DOWNLOAD_ATTEMPTS:
-                time.sleep(attempt * 2)
+            if (
+                attempt
+                < MAX_DOWNLOAD_ATTEMPTS
+            ):
+                time.sleep(
+                    attempt * 2
+                )
 
     raise RuntimeError(
         "Failed to download Quran audio. "
@@ -324,8 +614,10 @@ def get_ayah_audio(
     ayah: dict,
     reciter: dict
 ) -> Path:
-    global_number = get_global_number(
-        ayah
+    global_number = (
+        get_global_number(
+            ayah
+        )
     )
 
     reciter_folder = (
@@ -339,16 +631,14 @@ def get_ayah_audio(
         exist_ok=True
     )
 
-    audio_path = reciter_folder / (
-        f"{global_number}.mp3"
+    audio_path = (
+        reciter_folder
+        / f"{global_number}.mp3"
     )
 
-    if validate_audio_file(audio_path):
-        print(
-            "Using cached ayah audio:",
-            global_number
-        )
-
+    if validate_audio_file(
+        audio_path
+    ):
         return audio_path
 
     url = create_audio_url(
@@ -373,6 +663,7 @@ def check_ffmpeg() -> None:
             stderr=subprocess.DEVNULL,
             check=False
         )
+
     except FileNotFoundError as error:
         raise RuntimeError(
             "FFmpeg is not installed."
@@ -388,8 +679,9 @@ def create_concat_file(
     audio_paths: list[Path],
     segment_id: str
 ) -> Path:
-    concat_path = TEMP_FOLDER / (
-        f"{segment_id}_files.txt"
+    concat_path = (
+        TEMP_FOLDER
+        / f"{segment_id}_files.txt"
     )
 
     with concat_path.open(
@@ -403,9 +695,11 @@ def create_concat_file(
                 .as_posix()
             )
 
-            safe_path = absolute_path.replace(
-                "'",
-                "'\\''"
+            safe_path = (
+                absolute_path.replace(
+                    "'",
+                    "'\\''"
+                )
             )
 
             file.write(
@@ -425,15 +719,6 @@ def merge_audio_files(
             "No ayah audio files were supplied."
         )
 
-    if len(audio_paths) == 1:
-        source = audio_paths[0]
-
-        output_path.write_bytes(
-            source.read_bytes()
-        )
-
-        return output_path
-
     check_ffmpeg()
 
     concat_path = create_concat_file(
@@ -441,8 +726,10 @@ def merge_audio_files(
         segment_id
     )
 
-    temporary_output = output_path.with_suffix(
-        ".temporary.mp3"
+    temporary_output = (
+        output_path.with_suffix(
+            ".temporary.mp3"
+        )
     )
 
     command = [
@@ -453,13 +740,17 @@ def merge_audio_files(
         "-safe",
         "0",
         "-i",
-        str(concat_path),
+        str(
+            concat_path
+        ),
         "-vn",
         "-acodec",
         "libmp3lame",
         "-b:a",
         "128k",
-        str(temporary_output)
+        str(
+            temporary_output
+        )
     ]
 
     process = subprocess.run(
@@ -478,15 +769,9 @@ def merge_audio_files(
             missing_ok=True
         )
 
-        error_message = (
-            process.stderr[-1500:]
-            if process.stderr
-            else "Unknown FFmpeg error."
-        )
-
         raise RuntimeError(
-            "Could not merge Quran audio files. "
-            f"FFmpeg error: {error_message}"
+            "Could not merge Quran "
+            "audio files."
         )
 
     os.replace(
@@ -494,27 +779,24 @@ def merge_audio_files(
         output_path
     )
 
-    if not validate_audio_file(output_path):
+    if not validate_audio_file(
+        output_path
+    ):
         output_path.unlink(
             missing_ok=True
         )
 
         raise RuntimeError(
-            "Merged Quran audio file is invalid."
+            "Merged Quran audio is invalid."
         )
 
     return output_path
 
 
-def get_segment_audio(
+def get_real_segment_audio(
     segment: dict
 ) -> str:
     ensure_audio_folders()
-
-    if not isinstance(segment, dict):
-        raise RuntimeError(
-            "Segment must be an object."
-        )
 
     ayahs = segment.get(
         "ayahs",
@@ -533,52 +815,39 @@ def get_segment_audio(
             "Segment does not contain segment_id."
         )
 
-    if not isinstance(ayahs, list) or not ayahs:
+    if (
+        not isinstance(
+            ayahs,
+            list
+        )
+        or not ayahs
+    ):
         raise RuntimeError(
             "Segment does not contain any ayahs."
         )
 
     reciter = load_reciter_config()
 
-    output_path = AUDIO_FOLDER / (
-        f"{segment_id}.mp3"
+    output_path = (
+        AUDIO_FOLDER
+        / f"{segment_id}.mp3"
     )
 
-    if validate_audio_file(output_path):
-        print()
-        print("========== AUDIO ==========")
-        print("Using cached segment audio")
-        print("Reciter:", reciter["name"])
-        print("File:", output_path)
-        print("===========================")
-
-        return str(output_path)
+    if validate_audio_file(
+        output_path
+    ):
+        return str(
+            output_path
+        )
 
     audio_paths = []
 
-    print()
-    print("========== AUDIO ==========")
-    print("Reciter:", reciter["name"])
-    print("Source:", reciter["source_name"])
-    print("Ayah count:", len(ayahs))
-    print("===========================")
-
-    for index, ayah in enumerate(
-        ayahs,
-        start=1
-    ):
-        print(
-            f"Preparing ayah "
-            f"{index}/{len(ayahs)}"
-        )
-
-        audio_path = get_ayah_audio(
-            ayah,
-            reciter
-        )
-
+    for ayah in ayahs:
         audio_paths.append(
-            audio_path
+            get_ayah_audio(
+                ayah,
+                reciter
+            )
         )
 
     merged_path = merge_audio_files(
@@ -587,47 +856,38 @@ def get_segment_audio(
         segment_id=segment_id
     )
 
-    print()
-    print(
-        "Segment audio ready:",
+    return str(
         merged_path
     )
 
-    return str(merged_path)
 
-
-def get_audio(content: dict) -> str:
-    """
-    Compatibility function.
-
-    Accepts a Quran segment. A single ayah is also
-    converted into a one-ayah segment.
-    """
-
-    if not isinstance(content, dict):
-        raise RuntimeError(
-            "Audio content must be an object."
+def get_segment_audio(
+    segment: dict
+) -> str:
+    if TEST_MODE:
+        return create_test_audio(
+            segment
         )
 
-    if content.get("ayahs"):
-        return get_segment_audio(content)
-
-    global_number = get_global_number(
-        content
+    return get_real_segment_audio(
+        segment
     )
 
-    single_segment = {
-        "segment_id": f"single_{global_number}",
-        "ayahs": [content]
-    }
 
+def get_audio(
+    content: dict
+) -> str:
     return get_segment_audio(
-        single_segment
+        content
     )
 
 
 if __name__ == "__main__":
     print(
-        "Audio Engine installed successfully. "
-        "It must be called using a Quran segment."
+        "Audio Engine installed."
+    )
+
+    print(
+        "TEST_MODE:",
+        TEST_MODE
     )
