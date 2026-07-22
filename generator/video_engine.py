@@ -25,7 +25,7 @@ from PIL import (
 )
 
 from generator.audio_engine import get_segment_audio
-
+from generator.background_engine import choose_background
 
 OUTPUT_DIR = Path("output")
 BACKGROUND_DIR = Path("assets/backgrounds")
@@ -147,13 +147,6 @@ def find_backgrounds() -> list[Path]:
     return files
 
 
-def choose_background() -> Path | None:
-    files = find_backgrounds()
-
-    if not files:
-        return None
-
-    return random.choice(files)
 
 
 def cover_image(
