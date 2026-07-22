@@ -4,10 +4,9 @@ google-auth-oauthlib
 google-auth-httplib2
 requests
 
-moviepy
-Pillow
-imageio
+moviepy>=2.0,<3.0
+Pillow>=10.0
+numpy>=1.26
+arabic-reshaper>=3.0
+python-bidi>=0.6
 imageio-ffmpeg
-numpy
-proglog
-decorator
