@@ -1,36 +1,89 @@
 """
 Quran AI Publisher
 Audio Engine
-Version 1.0
+Version 2.0
+
+Audio files must be named like:
+
+001_001.mp3
+001_002.mp3
+001_003.mp3
+
+First three digits: Surah number
+Last three digits: Ayah number
 """
 
 import os
-import random
+
 
 AUDIO_FOLDER = "assets/audio"
 
+SUPPORTED_EXTENSIONS = (
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg"
+)
 
-def get_audio():
 
-    files = []
+def build_audio_filename(surah_number, ayah_number):
 
-    for file in os.listdir(AUDIO_FOLDER):
+    surah_part = str(int(surah_number)).zfill(3)
+    ayah_part = str(int(ayah_number)).zfill(3)
 
-        if file.lower().endswith((".mp3", ".wav")):
-            files.append(file)
+    return f"{surah_part}_{ayah_part}"
 
-    if len(files) == 0:
 
-        print("No audio found.")
+def find_audio_file(verse):
 
-        return None
+    if "surah_number" not in verse:
+        raise KeyError(
+            "The verse is missing 'surah_number' in data/quran.json."
+        )
 
-    selected = random.choice(files)
+    if "ayah" not in verse:
+        raise KeyError(
+            "The verse is missing 'ayah' in data/quran.json."
+        )
+
+    base_name = build_audio_filename(
+        verse["surah_number"],
+        verse["ayah"]
+    )
+
+    for extension in SUPPORTED_EXTENSIONS:
+
+        audio_path = os.path.join(
+            AUDIO_FOLDER,
+            base_name + extension
+        )
+
+        if os.path.isfile(audio_path):
+            return audio_path
+
+    expected = os.path.join(
+        AUDIO_FOLDER,
+        base_name + ".mp3"
+    )
+
+    raise FileNotFoundError(
+        "\nAudio file was not found.\n"
+        f"Upload the correct recitation to:\n{expected}\n"
+        "The system will not use random audio because that could "
+        "attach the wrong recitation to the verse."
+    )
+
+
+def get_audio(verse):
+
+    os.makedirs(AUDIO_FOLDER, exist_ok=True)
+
+    audio_path = find_audio_file(verse)
 
     print()
-
     print("========== AUDIO ==========")
-    print("Selected :", selected)
+    print("Audio:", audio_path)
     print("===========================")
 
-    return os.path.join(AUDIO_FOLDER, selected)
+    return audio_path
