@@ -61,8 +61,17 @@ jobs:
 
       - name: Check generated video
         run: |
-          test -f output/video.mp4
-          test -s output/video.mp4
+          VIDEO_FILE="$(find output -maxdepth 1 -type f -name '*.mp4' | head -n 1)"
+
+          if [ -z "$VIDEO_FILE" ]; then
+            echo "No generated MP4 video was found."
+            exit 1
+          fi
+
+          test -s "$VIDEO_FILE"
+
+          echo "Generated video:"
+          echo "$VIDEO_FILE"
 
           echo "Generated files:"
           ls -lh output/
@@ -72,14 +81,14 @@ jobs:
             -v error \
             -show_entries stream=index,codec_type,codec_name \
             -of default=noprint_wrappers=1 \
-            output/video.mp4
+            "$VIDEO_FILE"
 
           ffprobe \
             -v error \
             -select_streams a:0 \
             -show_entries stream=codec_name \
             -of csv=p=0 \
-            output/video.mp4 \
+            "$VIDEO_FILE" \
             | grep -q .
 
       - name: Upload generated files
@@ -87,10 +96,12 @@ jobs:
         with:
           name: quran-video-${{ github.run_number }}
           path: |
-            output/video.mp4
-            output/preview.png
+            output/*.mp4
+            output/*_preview.png
             output/title.txt
             output/description.txt
             output/tags.json
             output/report.json
+            output/manifest.json
+          if-no-files-found: error
           retention-days: 7
