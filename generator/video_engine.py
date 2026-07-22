@@ -1,114 +1,202 @@
 """
 Quran AI Publisher
-Compact Professional Video Engine
-Version 7.0
+Respectful Quran Video Engine
+Version 8.0
+
+Creates Quran Shorts and long videos.
+Displays consecutive ayahs one at a time.
+Uses only calm, respectful movement.
 """
 
 import json
 import math
 import os
 import random
+from pathlib import Path
 
 import numpy as np
 from moviepy import AudioFileClip, VideoClip
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import (
+    Image,
+    ImageDraw,
+    ImageEnhance,
+    ImageFilter,
+    ImageFont
+)
 
-from generator.audio_engine import get_audio
+from generator.audio_engine import get_segment_audio
 
 
-WIDTH = 1080
-HEIGHT = 1920
+OUTPUT_DIR = Path("output")
+BACKGROUND_DIR = Path("assets/backgrounds")
+FONT_DIR = Path("assets/fonts")
+
 FPS = 24
-MIN_DURATION = 8.0
-MAX_DURATION = 120.0
-
-OUTPUT_DIR = "output"
-BACKGROUND_DIR = "assets/backgrounds"
-FONT_DIR = "assets/fonts"
-
-VIDEO_PATH = os.path.join(OUTPUT_DIR, "video.mp4")
-PREVIEW_PATH = os.path.join(OUTPUT_DIR, "preview.png")
+MINIMUM_VIDEO_SIZE = 10000
 
 
-def ensure_folders():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(BACKGROUND_DIR, exist_ok=True)
-    os.makedirs(FONT_DIR, exist_ok=True)
+def ensure_folders() -> None:
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    BACKGROUND_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    FONT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
 
-def find_font():
+def get_video_dimensions(
+    segment: dict
+) -> tuple[int, int]:
+    video_type = segment.get(
+        "video_type",
+        "short"
+    )
+
+    if video_type == "long":
+        return 1920, 1080
+
+    return 1080, 1920
+
+
+def get_output_paths(
+    segment: dict
+) -> tuple[Path, Path]:
+    segment_id = str(
+        segment.get(
+            "segment_id",
+            "quran_video"
+        )
+    )
+
+    video_path = OUTPUT_DIR / (
+        f"{segment_id}.mp4"
+    )
+
+    preview_path = OUTPUT_DIR / (
+        f"{segment_id}_preview.png"
+    )
+
+    return video_path, preview_path
+
+
+def find_font() -> str:
     candidates = [
-        os.path.join(FONT_DIR, "NotoNaskhArabic-Bold.ttf"),
-        os.path.join(FONT_DIR, "NotoNaskhArabic-Regular.ttf"),
-        os.path.join(FONT_DIR, "arabic.ttf"),
-        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
-        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
-        "/usr/share/fonts/opentype/noto/NotoNaskhArabic-Bold.ttf",
-        "/usr/share/fonts/opentype/noto/NotoNaskhArabic-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        FONT_DIR / "NotoNaskhArabic-Bold.ttf",
+        FONT_DIR / "NotoNaskhArabic-Regular.ttf",
+        FONT_DIR / "arabic.ttf",
+
+        Path(
+            "/usr/share/fonts/truetype/noto/"
+            "NotoNaskhArabic-Bold.ttf"
+        ),
+
+        Path(
+            "/usr/share/fonts/truetype/noto/"
+            "NotoNaskhArabic-Regular.ttf"
+        ),
+
+        Path(
+            "/usr/share/fonts/opentype/noto/"
+            "NotoNaskhArabic-Bold.ttf"
+        ),
+
+        Path(
+            "/usr/share/fonts/truetype/dejavu/"
+            "DejaVuSans.ttf"
+        )
     ]
 
     for path in candidates:
-        if os.path.isfile(path):
-            return path
+        if path.is_file():
+            return str(path)
 
-    raise FileNotFoundError("No Arabic font was found.")
-
-
-def find_background():
-    allowed = (".jpg", ".jpeg", ".png", ".webp")
-
-    files = [
-        os.path.join(BACKGROUND_DIR, name)
-        for name in os.listdir(BACKGROUND_DIR)
-        if name.lower().endswith(allowed)
-    ]
-
-    return random.choice(files) if files else None
-
-
-def make_gradient():
-    top = np.array([17, 66, 76], dtype=np.float32)
-    bottom = np.array([2, 10, 22], dtype=np.float32)
-
-    y = np.linspace(
-        0,
-        1,
-        HEIGHT,
-        dtype=np.float32
-    )[:, None, None]
-
-    gradient = (
-        top[None, None, :] * (1 - y)
-        +
-        bottom[None, None, :] * y
+    raise RuntimeError(
+        "No Arabic font was found."
     )
 
-    return np.repeat(
-        gradient,
-        WIDTH,
-        axis=1
-    ).astype(np.uint8)
+
+def find_backgrounds() -> list[Path]:
+    allowed_extensions = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp"
+    }
+
+    files = []
+
+    if not BACKGROUND_DIR.exists():
+        return files
+
+    for path in BACKGROUND_DIR.iterdir():
+        if (
+            path.is_file()
+            and path.suffix.lower()
+            in allowed_extensions
+        ):
+            files.append(path)
+
+    return files
 
 
-def cover(image, width, height):
+def choose_background() -> Path | None:
+    files = find_backgrounds()
+
+    if not files:
+        return None
+
+    return random.choice(files)
+
+
+def cover_image(
+    image: Image.Image,
+    width: int,
+    height: int
+) -> Image.Image:
     scale = max(
         width / image.width,
         height / image.height
     )
 
-    new_size = (
-        math.ceil(image.width * scale),
-        math.ceil(image.height * scale)
+    resized_width = math.ceil(
+        image.width * scale
+    )
+
+    resized_height = math.ceil(
+        image.height * scale
     )
 
     image = image.resize(
-        new_size,
+        (
+            resized_width,
+            resized_height
+        ),
         Image.Resampling.LANCZOS
     )
 
-    left = (image.width - width) // 2
-    top = (image.height - height) // 2
+    left = max(
+        0,
+        (
+            resized_width
+            - width
+        ) // 2
+    )
+
+    top = max(
+        0,
+        (
+            resized_height
+            - height
+        ) // 2
+    )
 
     return image.crop(
         (
@@ -120,355 +208,95 @@ def cover(image, width, height):
     )
 
 
-def load_background():
-    path = find_background()
+def load_background() -> Image.Image | None:
+    path = choose_background()
 
-    if not path:
-        print("Background: automatic gradient")
+    if path is None:
+        print(
+            "Background: calm automatic gradient"
+        )
+
         return None
 
-    image = Image.open(path).convert("RGB")
-    image = ImageEnhance.Brightness(image).enhance(0.72)
-    image = ImageEnhance.Contrast(image).enhance(1.10)
-    image = ImageEnhance.Color(image).enhance(0.80)
+    try:
+        image = Image.open(
+            path
+        ).convert("RGB")
 
-    print("Background:", path)
+        image = ImageEnhance.Brightness(
+            image
+        ).enhance(0.66)
 
-    return image
+        image = ImageEnhance.Contrast(
+            image
+        ).enhance(1.08)
 
+        image = ImageEnhance.Color(
+            image
+        ).enhance(0.72)
 
-def measure(draw, text, font):
-    box = draw.textbbox(
-        (0, 0),
-        text,
-        font=font,
-        direction="rtl",
-        language="ar"
-    )
-
-    return box[2] - box[0]
-
-
-def wrap_text(draw, text, font, max_width):
-    lines = []
-    current = []
-
-    for word in text.split():
-        test = " ".join(current + [word])
-
-        if measure(draw, test, font) <= max_width:
-            current.append(word)
-        else:
-            if current:
-                lines.append(" ".join(current))
-
-            current = [word]
-
-    if current:
-        lines.append(" ".join(current))
-
-    return lines
-
-
-def fit_text(draw, text, font_path):
-    for size in range(84, 43, -2):
-        font = ImageFont.truetype(
-            font_path,
-            size
+        print(
+            "Background:",
+            path
         )
 
-        lines = wrap_text(
-            draw,
-            text,
-            font,
-            WIDTH - 220
-        )
+        return image
 
-        line_height = int(size * 1.55)
+    except OSError as error:
+        raise RuntimeError(
+            f"Could not open background: {path}"
+        ) from error
 
-        if (
-            len(lines) <= 8
-            and len(lines) * line_height <= 760
-        ):
-            return font, lines, line_height
 
-    font = ImageFont.truetype(
-        font_path,
-        44
+def make_gradient(
+    width: int,
+    height: int
+) -> np.ndarray:
+    top_color = np.array(
+        [15, 58, 67],
+        dtype=np.float32
     )
 
-    return (
-        font,
-        wrap_text(
-            draw,
-            text,
-            font,
-            WIDTH - 220
-        ),
-        70
+    bottom_color = np.array(
+        [2, 9, 18],
+        dtype=np.float32
     )
 
+    vertical = np.linspace(
+        0,
+        1,
+        height,
+        dtype=np.float32
+    )[:, None, None]
 
-def draw_rtl(
-    draw,
-    xy,
-    text,
-    font,
-    fill,
-    stroke_width=0
-):
-    draw.text(
-        xy,
-        text,
-        font=font,
-        fill=fill,
-        anchor="mm",
-        align="center",
-        direction="rtl",
-        language="ar",
-        stroke_width=stroke_width,
-        stroke_fill=(0, 0, 0)
-    )
-
-
-def make_text_layer(verse):
-    font_path = find_font()
-
-    layer = Image.new(
-        "RGBA",
-        (WIDTH, HEIGHT),
-        (0, 0, 0, 0)
-    )
-
-    draw = ImageDraw.Draw(layer)
-
-    title_font = ImageFont.truetype(
-        font_path,
-        54
-    )
-
-    footer_font = ImageFont.truetype(
-        font_path,
-        38
-    )
-
-    verse_font, lines, line_height = fit_text(
-        draw,
-        verse["text"],
-        font_path
-    )
-
-    draw.rounded_rectangle(
-        (60, 300, WIDTH - 60, 1585),
-        radius=60,
-        fill=(1, 13, 20, 190),
-        outline=(232, 202, 124, 225),
-        width=4
-    )
-
-    draw.rounded_rectangle(
-        (76, 316, WIDTH - 76, 1569),
-        radius=48,
-        outline=(255, 239, 185, 65),
-        width=2
-    )
-
-    title = (
-        f"سورة {verse['surah']} "
-        f"• الآية {verse['ayah']}"
-    )
-
-    draw_rtl(
-        draw,
-        (WIDTH // 2, 420),
-        title,
-        title_font,
-        (255, 235, 180),
-        1
-    )
-
-    draw.line(
-        (280, 510, 800, 510),
-        fill=(232, 202, 124, 150),
-        width=2
-    )
-
-    draw.ellipse(
-        (532, 502, 548, 518),
-        fill=(255, 235, 170, 240)
-    )
-
-    total_height = len(lines) * line_height
-
-    start_y = (
-        575
+    gradient = (
+        top_color[None, None, :]
+        * (1 - vertical)
         +
-        max(
-            0,
-            (730 - total_height) // 2
-        )
+        bottom_color[None, None, :]
+        * vertical
     )
 
-    for index, line in enumerate(lines):
-        y = (
-            start_y
-            +
-            index * line_height
-            +
-            line_height // 2
-        )
-
-        draw_rtl(
-            draw,
-            (WIDTH // 2, y),
-            line,
-            verse_font,
-            (255, 255, 255),
-            2
-        )
-
-    draw_rtl(
-        draw,
-        (WIDTH // 2, 1470),
-        "القرآن الكريم",
-        footer_font,
-        (225, 232, 235)
-    )
-
-    return layer
+    return np.repeat(
+        gradient,
+        width,
+        axis=1
+    ).astype(np.uint8)
 
 
-def make_particles(count=30):
-    random.seed(2026)
-
-    return [
-        {
-            "x": random.uniform(0, WIDTH),
-            "y": random.uniform(0, HEIGHT),
-            "r": random.uniform(1.2, 4.0),
-            "speed": random.uniform(12, 32),
-            "phase": random.uniform(0, math.tau),
-            "alpha": random.randint(45, 135)
-        }
-        for _ in range(count)
-    ]
-
-
-def particle_layer(t, particles):
-    layer = Image.new(
-        "RGBA",
-        (WIDTH, HEIGHT),
-        (0, 0, 0, 0)
-    )
-
-    draw = ImageDraw.Draw(layer)
-
-    for particle in particles:
-        y = (
-            particle["y"]
-            -
-            t * particle["speed"]
-        ) % (HEIGHT + 100) - 50
-
-        x = (
-            particle["x"]
-            +
-            math.sin(
-                t * 0.7
-                +
-                particle["phase"]
-            ) * 18
-        )
-
-        alpha = int(
-            particle["alpha"]
-            *
-            (
-                0.65
-                +
-                0.35
-                *
-                math.sin(
-                    t
-                    +
-                    particle["phase"]
-                )
-            )
-        )
-
-        radius = particle["r"]
-
-        draw.ellipse(
-            (
-                x - radius,
-                y - radius,
-                x + radius,
-                y + radius
-            ),
-            fill=(
-                255,
-                232,
-                165,
-                max(20, alpha)
-            )
-        )
-
-    return layer.filter(
-        ImageFilter.GaussianBlur(1.1)
-    )
-
-
-def glow_layer(t):
-    layer = Image.new(
-        "RGBA",
-        (WIDTH, HEIGHT),
-        (0, 0, 0, 0)
-    )
-
-    draw = ImageDraw.Draw(layer)
-
-    x = (
-        WIDTH * 0.5
-        +
-        math.sin(t * 0.22) * 145
-    )
-
-    y = (
-        HEIGHT * 0.15
-        +
-        math.cos(t * 0.18) * 50
-    )
-
-    radius = int(
-        320
-        +
-        math.sin(t * 0.65) * 35
-    )
-
-    draw.ellipse(
-        (
-            x - radius,
-            y - radius,
-            x + radius,
-            y + radius
-        ),
-        fill=(255, 224, 150, 45)
-    )
-
-    return layer.filter(
-        ImageFilter.GaussianBlur(115)
-    )
-
-
-def background_frame(
-    t,
-    duration,
-    source,
-    gradient
-):
+def create_background_frame(
+    time_value: float,
+    duration: float,
+    source: Image.Image | None,
+    gradient: np.ndarray,
+    width: int,
+    height: int
+) -> Image.Image:
     if source is None:
         shift = int(
-            math.sin(t * 0.22) * 24
+            math.sin(
+                time_value * 0.10
+            ) * 12
         )
 
         shifted = np.roll(
@@ -481,48 +309,60 @@ def background_frame(
             shifted
         ).convert("RGBA")
 
-    progress = t / max(
+    progress = time_value / max(
         duration,
         0.001
     )
 
-    zoom = 1.05 + progress * 0.08
-
-    width = int(WIDTH * zoom)
-    height = int(HEIGHT * zoom)
-
-    image = cover(
-        source,
-        width,
-        height
+    zoom = (
+        1.04
+        +
+        progress * 0.045
     )
 
-    max_x = width - WIDTH
-    max_y = height - HEIGHT
+    render_width = int(
+        width * zoom
+    )
+
+    render_height = int(
+        height * zoom
+    )
+
+    image = cover_image(
+        source,
+        render_width,
+        render_height
+    )
+
+    available_x = max(
+        0,
+        render_width - width
+    )
+
+    available_y = max(
+        0,
+        render_height - height
+    )
 
     x = int(
-        max_x
-        *
-        (
-            0.5
+        available_x
+        * (
+            0.50
             +
-            0.25
-            *
-            math.sin(
+            0.12
+            * math.sin(
                 progress * math.pi
             )
         )
     )
 
     y = int(
-        max_y
-        *
-        (
-            0.5
+        available_y
+        * (
+            0.50
             +
-            0.20
-            *
-            math.cos(
+            0.10
+            * math.cos(
                 progress * math.pi
             )
         )
@@ -532,32 +372,698 @@ def background_frame(
         (
             x,
             y,
-            x + WIDTH,
-            y + HEIGHT
+            x + width,
+            y + height
         )
     ).convert("RGBA")
 
 
-def animate_text(
-    layer,
-    t,
-    duration
-):
+def create_soft_light(
+    time_value: float,
+    width: int,
+    height: int
+) -> Image.Image:
+    layer = Image.new(
+        "RGBA",
+        (
+            width,
+            height
+        ),
+        (
+            0,
+            0,
+            0,
+            0
+        )
+    )
+
+    draw = ImageDraw.Draw(
+        layer
+    )
+
+    center_x = (
+        width * 0.50
+        +
+        math.sin(
+            time_value * 0.12
+        )
+        * width * 0.06
+    )
+
+    center_y = (
+        height * 0.15
+        +
+        math.cos(
+            time_value * 0.10
+        )
+        * height * 0.025
+    )
+
+    radius = int(
+        min(
+            width,
+            height
+        ) * 0.36
+    )
+
+    draw.ellipse(
+        (
+            center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius
+        ),
+        fill=(
+            255,
+            229,
+            165,
+            38
+        )
+    )
+
+    return layer.filter(
+        ImageFilter.GaussianBlur(
+            max(
+                60,
+                radius // 3
+            )
+        )
+    )
+
+
+def text_width(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.FreeTypeFont
+) -> int:
+    box = draw.textbbox(
+        (
+            0,
+            0
+        ),
+        text,
+        font=font,
+        direction="rtl",
+        language="ar"
+    )
+
+    return box[2] - box[0]
+
+
+def wrap_arabic_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    maximum_width: int
+) -> list[str]:
+    lines = []
+    current_words = []
+
+    for word in text.split():
+        candidate = " ".join(
+            current_words + [word]
+        )
+
+        if text_width(
+            draw,
+            candidate,
+            font
+        ) <= maximum_width:
+            current_words.append(
+                word
+            )
+
+        else:
+            if current_words:
+                lines.append(
+                    " ".join(
+                        current_words
+                    )
+                )
+
+            current_words = [
+                word
+            ]
+
+    if current_words:
+        lines.append(
+            " ".join(
+                current_words
+            )
+        )
+
+    return lines
+
+
+def fit_ayah_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font_path: str,
+    maximum_width: int,
+    maximum_height: int,
+    maximum_size: int,
+    minimum_size: int
+) -> tuple:
+    for font_size in range(
+        maximum_size,
+        minimum_size - 1,
+        -2
+    ):
+        font = ImageFont.truetype(
+            font_path,
+            font_size
+        )
+
+        lines = wrap_arabic_text(
+            draw,
+            text,
+            font,
+            maximum_width
+        )
+
+        line_height = int(
+            font_size * 1.55
+        )
+
+        total_height = (
+            len(lines)
+            * line_height
+        )
+
+        if (
+            len(lines) <= 10
+            and total_height
+            <= maximum_height
+        ):
+            return (
+                font,
+                lines,
+                line_height
+            )
+
+    font = ImageFont.truetype(
+        font_path,
+        minimum_size
+    )
+
+    lines = wrap_arabic_text(
+        draw,
+        text,
+        font,
+        maximum_width
+    )
+
+    return (
+        font,
+        lines,
+        int(
+            minimum_size * 1.55
+        )
+    )
+
+
+def draw_arabic(
+    draw: ImageDraw.ImageDraw,
+    position: tuple,
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    fill: tuple,
+    stroke_width: int = 0
+) -> None:
+    draw.text(
+        position,
+        text,
+        font=font,
+        fill=fill,
+        anchor="mm",
+        align="center",
+        direction="rtl",
+        language="ar",
+        stroke_width=stroke_width,
+        stroke_fill=(
+            0,
+            0,
+            0
+        )
+    )
+
+
+def create_ayah_layer(
+    ayah: dict,
+    segment: dict,
+    width: int,
+    height: int
+) -> Image.Image:
+    font_path = find_font()
+
+    layer = Image.new(
+        "RGBA",
+        (
+            width,
+            height
+        ),
+        (
+            0,
+            0,
+            0,
+            0
+        )
+    )
+
+    draw = ImageDraw.Draw(
+        layer
+    )
+
+    is_long = (
+        segment.get(
+            "video_type"
+        )
+        == "long"
+    )
+
+    if is_long:
+        panel_left = int(
+            width * 0.12
+        )
+
+        panel_right = int(
+            width * 0.88
+        )
+
+        panel_top = int(
+            height * 0.17
+        )
+
+        panel_bottom = int(
+            height * 0.83
+        )
+
+        title_size = 44
+        footer_size = 30
+        maximum_text_size = 66
+        minimum_text_size = 38
+
+    else:
+        panel_left = int(
+            width * 0.06
+        )
+
+        panel_right = int(
+            width * 0.94
+        )
+
+        panel_top = int(
+            height * 0.16
+        )
+
+        panel_bottom = int(
+            height * 0.84
+        )
+
+        title_size = 54
+        footer_size = 36
+        maximum_text_size = 82
+        minimum_text_size = 42
+
+    panel_width = (
+        panel_right
+        - panel_left
+    )
+
+    panel_height = (
+        panel_bottom
+        - panel_top
+    )
+
+    radius = int(
+        min(
+            width,
+            height
+        ) * 0.035
+    )
+
+    draw.rounded_rectangle(
+        (
+            panel_left,
+            panel_top,
+            panel_right,
+            panel_bottom
+        ),
+        radius=radius,
+        fill=(
+            2,
+            15,
+            23,
+            196
+        ),
+        outline=(
+            232,
+            202,
+            124,
+            225
+        ),
+        width=4
+    )
+
+    inner_margin = int(
+        min(
+            width,
+            height
+        ) * 0.014
+    )
+
+    draw.rounded_rectangle(
+        (
+            panel_left
+            + inner_margin,
+            panel_top
+            + inner_margin,
+            panel_right
+            - inner_margin,
+            panel_bottom
+            - inner_margin
+        ),
+        radius=max(
+            12,
+            radius - 10
+        ),
+        outline=(
+            255,
+            239,
+            185,
+            55
+        ),
+        width=2
+    )
+
+    title_font = ImageFont.truetype(
+        font_path,
+        title_size
+    )
+
+    footer_font = ImageFont.truetype(
+        font_path,
+        footer_size
+    )
+
+    title = (
+        f"سورة {ayah['surah']} "
+        f"• الآية {ayah['ayah']}"
+    )
+
+    title_y = (
+        panel_top
+        +
+        int(
+            panel_height * 0.11
+        )
+    )
+
+    draw_arabic(
+        draw,
+        (
+            width // 2,
+            title_y
+        ),
+        title,
+        title_font,
+        (
+            255,
+            235,
+            180
+        ),
+        1
+    )
+
+    separator_y = (
+        panel_top
+        +
+        int(
+            panel_height * 0.19
+        )
+    )
+
+    draw.line(
+        (
+            panel_left
+            + panel_width * 0.24,
+            separator_y,
+            panel_right
+            - panel_width * 0.24,
+            separator_y
+        ),
+        fill=(
+            232,
+            202,
+            124,
+            145
+        ),
+        width=2
+    )
+
+    text_area_top = (
+        panel_top
+        +
+        int(
+            panel_height * 0.25
+        )
+    )
+
+    text_area_bottom = (
+        panel_bottom
+        -
+        int(
+            panel_height * 0.17
+        )
+    )
+
+    maximum_text_width = int(
+        panel_width * 0.82
+    )
+
+    maximum_text_height = (
+        text_area_bottom
+        - text_area_top
+    )
+
+    ayah_font, lines, line_height = (
+        fit_ayah_text(
+            draw=draw,
+            text=ayah["text"],
+            font_path=font_path,
+            maximum_width=maximum_text_width,
+            maximum_height=maximum_text_height,
+            maximum_size=maximum_text_size,
+            minimum_size=minimum_text_size
+        )
+    )
+
+    total_text_height = (
+        len(lines)
+        * line_height
+    )
+
+    first_line_y = (
+        text_area_top
+        +
+        max(
+            0,
+            (
+                maximum_text_height
+                - total_text_height
+            ) // 2
+        )
+        +
+        line_height // 2
+    )
+
+    for index, line in enumerate(
+        lines
+    ):
+        y = (
+            first_line_y
+            +
+            index
+            * line_height
+        )
+
+        draw_arabic(
+            draw,
+            (
+                width // 2,
+                y
+            ),
+            line,
+            ayah_font,
+            (
+                255,
+                255,
+                255
+            ),
+            2
+        )
+
+    footer_y = (
+        panel_bottom
+        -
+        int(
+            panel_height * 0.08
+        )
+    )
+
+    draw_arabic(
+        draw,
+        (
+            width // 2,
+            footer_y
+        ),
+        "القرآن الكريم",
+        footer_font,
+        (
+            220,
+            230,
+            232
+        )
+    )
+
+    return layer
+
+
+def estimate_ayah_weight(
+    ayah: dict
+) -> float:
+    word_count = len(
+        ayah.get(
+            "text",
+            ""
+        ).split()
+    )
+
+    return max(
+        2.5,
+        word_count * 0.55
+    )
+
+
+def create_ayah_timeline(
+    segment: dict,
+    audio_duration: float
+) -> list[dict]:
+    ayahs = segment.get(
+        "ayahs",
+        []
+    )
+
+    if not ayahs:
+        raise RuntimeError(
+            "The Quran segment has no ayahs."
+        )
+
+    weights = [
+        estimate_ayah_weight(
+            ayah
+        )
+        for ayah in ayahs
+    ]
+
+    total_weight = sum(
+        weights
+    )
+
+    if total_weight <= 0:
+        raise RuntimeError(
+            "Could not calculate ayah timings."
+        )
+
+    timeline = []
+    current_time = 0.0
+
+    for index, ayah in enumerate(
+        ayahs
+    ):
+        if index == len(ayahs) - 1:
+            end_time = audio_duration
+
+        else:
+            ayah_duration = (
+                audio_duration
+                * weights[index]
+                / total_weight
+            )
+
+            end_time = (
+                current_time
+                + ayah_duration
+            )
+
+        timeline.append(
+            {
+                "ayah": ayah,
+                "start": current_time,
+                "end": end_time
+            }
+        )
+
+        current_time = end_time
+
+    return timeline
+
+
+def get_active_ayah(
+    timeline: list[dict],
+    time_value: float
+) -> tuple[int, dict]:
+    for index, item in enumerate(
+        timeline
+    ):
+        if (
+            item["start"]
+            <= time_value
+            < item["end"]
+        ):
+            return index, item
+
+    return (
+        len(timeline) - 1,
+        timeline[-1]
+    )
+
+
+def animate_ayah_layer(
+    layer: Image.Image,
+    local_time: float,
+    ayah_duration: float,
+    width: int,
+    height: int
+) -> Image.Image:
+    fade_duration = min(
+        0.75,
+        max(
+            0.20,
+            ayah_duration * 0.15
+        )
+    )
+
     fade_in = min(
         1.0,
         max(
             0.0,
-            t / 1.2
+            local_time
+            / fade_duration
         )
+    )
+
+    remaining = (
+        ayah_duration
+        - local_time
     )
 
     fade_out = min(
         1.0,
         max(
             0.0,
-            (
-                duration - t
-            ) / 0.8
+            remaining
+            / fade_duration
         )
     )
 
@@ -576,57 +1082,78 @@ def animate_text(
         )
     )
 
-    animated.putalpha(alpha)
-
-    offset = int(
-        (
-            1.0 - fade_in
-        ) * 34
+    animated.putalpha(
+        alpha
     )
 
-    if offset == 0:
+    movement_limit = int(
+        height * 0.012
+    )
+
+    vertical_offset = int(
+        (
+            1.0
+            - fade_in
+        )
+        * movement_limit
+    )
+
+    if vertical_offset == 0:
         return animated
 
     moved = Image.new(
         "RGBA",
-        (WIDTH, HEIGHT),
-        (0, 0, 0, 0)
+        (
+            width,
+            height
+        ),
+        (
+            0,
+            0,
+            0,
+            0
+        )
     )
 
     moved.alpha_composite(
         animated,
-        (0, offset)
+        (
+            0,
+            vertical_offset
+        )
     )
 
     return moved
 
 
-def save_metadata(verse, seo):
-    with open(
-        os.path.join(
-            OUTPUT_DIR,
-            "title.txt"
-        ),
-        "w",
-        encoding="utf-8"
-    ) as file:
-        file.write(seo["title"])
+def save_metadata(
+    segment: dict,
+    seo: dict,
+    video_path: Path,
+    preview_path: Path
+) -> None:
+    files = {
+        "title.txt": seo["title"],
+        "description.txt": seo["description"],
+        "segment_text.txt": segment["text"]
+    }
 
-    with open(
-        os.path.join(
-            OUTPUT_DIR,
-            "description.txt"
-        ),
-        "w",
-        encoding="utf-8"
-    ) as file:
-        file.write(seo["description"])
+    for filename, content in files.items():
+        with (
+            OUTPUT_DIR
+            / filename
+        ).open(
+            "w",
+            encoding="utf-8"
+        ) as file:
+            file.write(
+                str(content)
+            )
 
-    with open(
-        os.path.join(
-            OUTPUT_DIR,
-            "tags.json"
-        ),
+    with (
+        OUTPUT_DIR
+        / "tags.json"
+    ).open(
         "w",
         encoding="utf-8"
     ) as file:
@@ -637,74 +1164,182 @@ def save_metadata(verse, seo):
             indent=2
         )
 
-    with open(
-        os.path.join(
-            OUTPUT_DIR,
-            "verse.txt"
+    manifest = {
+        "segment_id": segment[
+            "segment_id"
+        ],
+        "video_type": segment[
+            "video_type"
+        ],
+        "surah": segment[
+            "surah"
+        ],
+        "start_ayah": segment[
+            "start_ayah"
+        ],
+        "end_ayah": segment[
+            "end_ayah"
+        ],
+        "ayah_count": segment[
+            "ayah_count"
+        ],
+        "privacy_status": seo.get(
+            "privacy_status",
+            "private"
         ),
+        "video_path": str(
+            video_path
+        ),
+        "preview_path": str(
+            preview_path
+        )
+    }
+
+    with (
+        OUTPUT_DIR
+        / "manifest.json"
+    ).open(
         "w",
         encoding="utf-8"
     ) as file:
-        file.write(verse["text"])
+        json.dump(
+            manifest,
+            file,
+            ensure_ascii=False,
+            indent=2
+        )
 
 
-def build_video(verse, seo):
+def build_video(
+    segment: dict,
+    seo: dict
+) -> str:
     ensure_folders()
-    save_metadata(verse, seo)
 
-    audio_path = get_audio(verse)
+    required_fields = [
+        "segment_id",
+        "video_type",
+        "surah",
+        "start_ayah",
+        "end_ayah",
+        "ayahs",
+        "text"
+    ]
+
+    for field in required_fields:
+        if field not in segment:
+            raise RuntimeError(
+                "Video segment is missing: "
+                f"{field}"
+            )
+
+    width, height = get_video_dimensions(
+        segment
+    )
+
+    video_path, preview_path = (
+        get_output_paths(
+            segment
+        )
+    )
+
+    audio_path = get_segment_audio(
+        segment
+    )
 
     audio = AudioFileClip(
         audio_path
     )
 
-    duration = max(
-        MIN_DURATION,
-        min(
-            float(audio.duration),
-            MAX_DURATION
-        )
+    duration = float(
+        audio.duration
     )
 
-    if audio.duration > duration:
-        audio = audio.subclipped(
-            0,
-            duration
+    if duration <= 0:
+        audio.close()
+
+        raise RuntimeError(
+            "Quran audio duration is invalid."
         )
 
-    source = load_background()
-    gradient = make_gradient()
-    text_layer = make_text_layer(verse)
-    particles = make_particles()
+    timeline = create_ayah_timeline(
+        segment,
+        duration
+    )
 
-    def make_frame(t):
-        frame = background_frame(
-            t,
-            duration,
-            source,
-            gradient
+    background_source = (
+        load_background()
+    )
+
+    gradient = make_gradient(
+        width,
+        height
+    )
+
+    ayah_layers = [
+        create_ayah_layer(
+            ayah=item["ayah"],
+            segment=segment,
+            width=width,
+            height=height
+        )
+        for item in timeline
+    ]
+
+    def make_frame(
+        time_value: float
+    ) -> np.ndarray:
+        frame = create_background_frame(
+            time_value=time_value,
+            duration=duration,
+            source=background_source,
+            gradient=gradient,
+            width=width,
+            height=height
         )
 
         frame = Image.alpha_composite(
             frame,
-            glow_layer(t)
+            create_soft_light(
+                time_value,
+                width,
+                height
+            )
         )
 
-        frame = Image.alpha_composite(
-            frame,
-            particle_layer(
-                t,
-                particles
+        active_index, active_item = (
+            get_active_ayah(
+                timeline,
+                time_value
+            )
+        )
+
+        local_time = (
+            time_value
+            - active_item["start"]
+        )
+
+        ayah_duration = max(
+            0.01,
+            active_item["end"]
+            - active_item["start"]
+        )
+
+        animated_layer = (
+            animate_ayah_layer(
+                layer=ayah_layers[
+                    active_index
+                ],
+                local_time=local_time,
+                ayah_duration=ayah_duration,
+                width=width,
+                height=height
             )
         )
 
         frame = Image.alpha_composite(
             frame,
-            animate_text(
-                text_layer,
-                t,
-                duration
-            )
+            animated_layer
         )
 
         return np.asarray(
@@ -713,46 +1348,84 @@ def build_video(verse, seo):
         )
 
     preview_time = min(
-        1.5,
-        duration / 2
+        max(
+            duration * 0.15,
+            0.20
+        ),
+        duration - 0.01
     )
 
     Image.fromarray(
-        make_frame(preview_time)
-    ).save(PREVIEW_PATH)
+        make_frame(
+            preview_time
+        )
+    ).save(
+        preview_path
+    )
 
     video = VideoClip(
         frame_function=make_frame,
         duration=duration
-    ).with_audio(audio)
-
-    video.write_videofile(
-        VIDEO_PATH,
-        fps=FPS,
-        codec="libx264",
-        audio_codec="aac",
-        audio_bitrate="192k",
-        bitrate="5000k",
-        preset="medium",
-        threads=2,
-        pixel_format="yuv420p",
-        logger="bar"
+    ).with_audio(
+        audio
     )
 
-    video.close()
-    audio.close()
-
-    if (
-        not os.path.isfile(VIDEO_PATH)
-        or os.path.getsize(VIDEO_PATH) < 10000
-    ):
-        raise RuntimeError(
-            "The generated video is missing or empty."
+    try:
+        video.write_videofile(
+            str(video_path),
+            fps=FPS,
+            codec="libx264",
+            audio_codec="aac",
+            audio_bitrate="192k",
+            bitrate=(
+                "6000k"
+                if segment["video_type"]
+                == "long"
+                else "4500k"
+            ),
+            preset="medium",
+            threads=2,
+            pixel_format="yuv420p",
+            logger="bar"
         )
 
-    print(
-        "Video created successfully:",
-        VIDEO_PATH
+    finally:
+        video.close()
+        audio.close()
+
+    if (
+        not video_path.is_file()
+        or video_path.stat().st_size
+        < MINIMUM_VIDEO_SIZE
+    ):
+        raise RuntimeError(
+            "The generated Quran video is "
+            "missing or empty."
+        )
+
+    save_metadata(
+        segment=segment,
+        seo=seo,
+        video_path=video_path,
+        preview_path=preview_path
     )
 
-    return VIDEO_PATH
+    print()
+    print("========== VIDEO READY ==========")
+    print("Type:", segment["video_type"])
+    print("Size:", f"{width}x{height}")
+    print("Surah:", segment["surah"])
+    print(
+        "Ayahs:",
+        f"{segment['start_ayah']}"
+        f"-{segment['end_ayah']}"
+    )
+    print("Duration:", round(duration, 2))
+    print("Video:", video_path)
+    print("Preview:", preview_path)
+    print("Privacy: private")
+    print("=================================")
+
+    return str(
+        video_path
+    )
