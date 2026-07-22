@@ -1,30 +1,53 @@
 name: Daily Quran Publisher
 
 on:
+  workflow_dispatch:
+
   schedule:
     - cron: "0 6 * * *"
-  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout project
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+          cache: "pip"
 
-      - name: Install dependencies
+      - name: Install requirements
         run: |
-          pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run AI Brain
-        run: python main.py
-        env:
-          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      - name: Run publisher
+        run: |
+          python main.py
+
+      - name: Check generated video
+        run: |
+          test -f output/video.mp4
+          test -s output/video.mp4
+          ls -lh output/
+
+      - name: Upload generated files
+        uses: actions/upload-artifact@v6
+        with:
+          name: quran-video-${{ github.run_number }}
+          path: |
+            output/video.mp4
+            output/frame.png
+            output/title.txt
+            output/description.txt
+            output/tags.json
+            output/report.json
+          retention-days: 7
