@@ -1,0 +1,17 @@
+{
+  "selected_reciter": "alafasy",
+
+  "reciters": {
+    "alafasy": {
+      "name": "مشاري راشد العفاسي",
+      "source_name": "Islamic Network CDN",
+      "url_template": "https://cdn.islamic.network/quran/audio/128/ar.alafasy/{global_number}.mp3",
+
+      "approved": false,
+      "license_verified": false,
+      "copyright_claim_history": "unknown",
+
+      "notes": "موقوف مؤقتًا حتى يتم التأكد من حقوق إعادة الاستخدام والنشر على يوتيوب."
+    }
+  }
+}
