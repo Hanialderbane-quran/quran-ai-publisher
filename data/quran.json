@@ -1,23 +1,27 @@
 [
     {
+        "number": 1,
         "surah_number": 1,
         "surah": "الفاتحة",
         "ayah": 1,
         "text": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
     },
     {
+        "number": 2,
         "surah_number": 1,
         "surah": "الفاتحة",
         "ayah": 2,
         "text": "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"
     },
     {
+        "number": 3,
         "surah_number": 1,
         "surah": "الفاتحة",
         "ayah": 3,
         "text": "الرَّحْمَٰنِ الرَّحِيمِ"
     },
     {
+        "number": 4,
         "surah_number": 1,
         "surah": "الفاتحة",
         "ayah": 4,
