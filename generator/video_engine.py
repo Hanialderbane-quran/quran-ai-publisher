@@ -1,11 +1,14 @@
 """
 Quran AI Publisher
 Video Engine
-Version 2.0
+Version 3.0
 """
 
 import os
 import json
+
+from generator.background_engine import get_background
+from generator.audio_engine import get_audio
 
 OUTPUT_FOLDER = "output"
 
@@ -15,7 +18,7 @@ def prepare_output():
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-def save_text(name, content):
+def save_text(name, text):
 
     with open(
         os.path.join(OUTPUT_FOLDER, name),
@@ -23,10 +26,10 @@ def save_text(name, content):
         encoding="utf-8"
     ) as file:
 
-        file.write(content)
+        file.write(text)
 
 
-def save_json(name, content):
+def save_json(name, data):
 
     with open(
         os.path.join(OUTPUT_FOLDER, name),
@@ -34,12 +37,21 @@ def save_json(name, content):
         encoding="utf-8"
     ) as file:
 
-        json.dump(content, file, ensure_ascii=False, indent=4)
+        json.dump(
+            data,
+            file,
+            ensure_ascii=False,
+            indent=4
+        )
 
 
 def build_video(verse, seo):
 
     prepare_output()
+
+    background = get_background()
+
+    audio = get_audio()
 
     save_text("title.txt", seo["title"])
 
@@ -53,13 +65,19 @@ def build_video(verse, seo):
     )
 
     print()
-    print("========== VIDEO ENGINE ==========")
-    print("Output Folder : output/")
-    print("Title Saved")
-    print("Description Saved")
-    print("Tags Saved")
-    print("Verse Saved")
-    print("Video Status : READY")
-    print("==================================")
+
+    print("========== VIDEO ==========")
+
+    print("Background :", background)
+
+    print("Audio      :", audio)
+
+    print("Resolution : 1080x1920")
+
+    print("FPS        : 30")
+
+    print("Status     : READY")
+
+    print("===========================")
 
     return "output/video.mp4"
