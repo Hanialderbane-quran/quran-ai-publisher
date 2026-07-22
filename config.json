@@ -1,7 +1,92 @@
 {
-  "channel_name": "Quran AI Channel",
+  "project_name": "Quran AI Publisher",
+  "channel_name": "قناة القرآن الكريم",
+  "channel_type": "quran",
   "language": "ar",
-  "video_type": "shorts",
-  "publish_daily": true,
-  "publish_time": "09:00"
+
+  "publishing": {
+    "enabled": true,
+    "default_privacy": "private",
+    "publish_only_after_validation": true,
+
+    "shorts": {
+      "enabled": true,
+      "videos_per_day": 2,
+      "minimum_duration_seconds": 30,
+      "maximum_duration_seconds": 60
+    },
+
+    "long_videos": {
+      "enabled": true,
+      "videos_per_week": 4,
+      "minimum_duration_minutes": 10,
+      "maximum_duration_minutes": 25,
+      "publish_days": [
+        "saturday",
+        "monday",
+        "wednesday",
+        "friday"
+      ]
+    }
+  },
+
+  "quran_content": {
+    "complete_quran_required": true,
+    "use_consecutive_ayahs": true,
+    "split_only_between_ayahs": true,
+    "allow_single_ayah_only_when_long": true,
+    "prevent_repeated_segments": true,
+    "verify_surah_name": true,
+    "verify_ayah_numbers": true,
+    "verify_quran_text": true
+  },
+
+  "audio_safety": {
+    "require_approved_source": true,
+    "block_unknown_reciters": true,
+    "block_unverified_licenses": true,
+    "block_previous_claim_sources": true,
+    "allow_background_music": false,
+    "allow_sound_effects": false
+  },
+
+  "visual_identity": {
+    "theme": "professional_quran",
+    "respectful_motion_only": true,
+    "animated_backgrounds": true,
+    "prevent_recent_background_reuse": true,
+    "minimum_background_gap": 30,
+    "allowed_background_categories": [
+      "mosques",
+      "islamic_architecture",
+      "sky",
+      "clouds",
+      "nature",
+      "mountains",
+      "water",
+      "islamic_patterns"
+    ],
+    "blocked_motion_styles": [
+      "fast_zoom",
+      "spinning_text",
+      "bouncing_text",
+      "flashing",
+      "aggressive_transitions",
+      "random_movements"
+    ],
+    "text_animation": "soft_fade",
+    "background_motion": "slow_cinematic",
+    "show_quran_text_clearly": true,
+    "use_full_diacritics": true
+  },
+
+  "quality_and_safety": {
+    "block_upload_on_any_error": true,
+    "validate_audio": true,
+    "validate_video": true,
+    "validate_text": true,
+    "validate_synchronization": true,
+    "validate_duplicate_content": true,
+    "create_validation_report": true
+  }
 }
