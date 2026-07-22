@@ -12,7 +12,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout project
@@ -24,10 +24,36 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install requirements
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ffmpeg \
+            libraqm0 \
+            fonts-noto-core \
+            fonts-noto-extra
+
+      - name: Show Arabic fonts
+        run: |
+          fc-list | grep -i "Noto Naskh Arabic" | head -10 || true
+
+      - name: Install Python requirements
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Check Pillow RTL support
+        run: |
+          python - <<'PY'
+          from PIL import features
+
+          print("RAQM support:", features.check("raqm"))
+
+          if not features.check("raqm"):
+              raise RuntimeError(
+                  "Pillow was installed without RAQM support."
+              )
+          PY
 
       - name: Run publisher
         run: |
@@ -37,7 +63,24 @@ jobs:
         run: |
           test -f output/video.mp4
           test -s output/video.mp4
+
+          echo "Generated files:"
           ls -lh output/
+
+          echo "Video streams:"
+          ffprobe \
+            -v error \
+            -show_entries stream=index,codec_type,codec_name \
+            -of default=noprint_wrappers=1 \
+            output/video.mp4
+
+          ffprobe \
+            -v error \
+            -select_streams a:0 \
+            -show_entries stream=codec_name \
+            -of csv=p=0 \
+            output/video.mp4 \
+            | grep -q .
 
       - name: Upload generated files
         uses: actions/upload-artifact@v6
@@ -45,7 +88,7 @@ jobs:
           name: quran-video-${{ github.run_number }}
           path: |
             output/video.mp4
-            output/frame.png
+            output/preview.png
             output/title.txt
             output/description.txt
             output/tags.json
