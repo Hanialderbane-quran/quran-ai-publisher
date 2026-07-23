@@ -1,0 +1,11 @@
+{
+  "backgrounds": [
+    {
+      "path": "assets/backgrounds/quran_night_water.png",
+      "category": "nature_water_mountains",
+      "approved": true,
+      "contains_people": false,
+      "notes": "Procedurally generated; no people, faces, or logos."
+    }
+  ]
+}
