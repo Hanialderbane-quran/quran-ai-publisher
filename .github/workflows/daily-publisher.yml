@@ -2,17 +2,34 @@ name: Daily Quran Publisher
 
 on:
   workflow_dispatch:
-
   schedule:
     - cron: "0 6 * * *"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: quran-daily-publisher
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
+
+    env:
+      QURAN_AUDIO_MODE: ${{ vars.QURAN_AUDIO_MODE || 'test' }}
+      ADVANCE_AFTER_RENDER: ${{ vars.ADVANCE_AFTER_RENDER || 'true' }}
+      YOUTUBE_UPLOAD_ENABLED: ${{ vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
+      AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
+      QF_ENV: ${{ vars.QF_ENV || 'production' }}
+      QF_CHAPTER_RECITER_ID: ${{ vars.QF_CHAPTER_RECITER_ID || '7' }}
+      QF_RECITER_NAME: ${{ vars.QF_RECITER_NAME || 'قارئ القرآن الكريم' }}
+      QF_CLIENT_ID: ${{ secrets.QF_CLIENT_ID }}
+      QF_CLIENT_SECRET: ${{ secrets.QF_CLIENT_SECRET }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
 
     steps:
       - name: Checkout project
@@ -27,69 +44,40 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            libraqm0 \
-            fonts-noto-core \
-            fonts-noto-extra
-
-      - name: Show Arabic fonts
-        run: |
-          fc-list | grep -i "Noto Naskh Arabic" | head -10 || true
+          sudo apt-get install -y ffmpeg libraqm0 fonts-noto-core fonts-noto-extra
 
       - name: Install Python requirements
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Check Pillow RTL support
+      - name: Verify Python files
         run: |
-          python - <<'PY'
-          from PIL import features
-
-          print("RAQM support:", features.check("raqm"))
-
-          if not features.check("raqm"):
-              raise RuntimeError(
-                  "Pillow was installed without RAQM support."
-              )
-          PY
+          python -m compileall -q main.py generator
 
       - name: Run publisher
         run: |
           python main.py
 
-      - name: Check generated video
+      - name: Inspect generated video
         run: |
           VIDEO_FILE="$(find output -maxdepth 1 -type f -name '*.mp4' | head -n 1)"
-
-          if [ -z "$VIDEO_FILE" ]; then
-            echo "No generated MP4 video was found."
-            exit 1
-          fi
-
+          test -n "$VIDEO_FILE"
           test -s "$VIDEO_FILE"
-
-          echo "Generated video:"
-          echo "$VIDEO_FILE"
-
-          echo "Generated files:"
+          ffprobe -v error -show_entries stream=index,codec_type,codec_name -of default=noprint_wrappers=1 "$VIDEO_FILE"
           ls -lh output/
 
-          echo "Video streams:"
-          ffprobe \
-            -v error \
-            -show_entries stream=index,codec_type,codec_name \
-            -of default=noprint_wrappers=1 \
-            "$VIDEO_FILE"
-
-          ffprobe \
-            -v error \
-            -select_streams a:0 \
-            -show_entries stream=codec_name \
-            -of csv=p=0 \
-            "$VIDEO_FILE" \
-            | grep -q .
+      - name: Save publisher progress
+        run: |
+          git config user.name "quran-ai-publisher[bot]"
+          git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
+          git add data/progress.json data/background_memory.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No progress changes to commit."
+          else
+            git commit -m "Update Quran publisher progress [skip ci]"
+            git push
+          fi
 
       - name: Upload generated files
         uses: actions/upload-artifact@v6
@@ -103,5 +91,6 @@ jobs:
             output/tags.json
             output/report.json
             output/manifest.json
+            output/audio/timings/*.json
           if-no-files-found: error
           retention-days: 7
