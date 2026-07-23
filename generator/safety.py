@@ -1,34 +1,44 @@
+"""Project safety and required-file checks."""
+from __future__ import annotations
+
 import json
-import os
+from pathlib import Path
+
+REQUIRED_FILES = [
+    Path("config.json"),
+    Path("data/quran.json"),
+    Path("data/progress.json"),
+    Path("generator/brain.py"),
+    Path("generator/segment_engine.py"),
+    Path("generator/progress_engine.py"),
+    Path("generator/video_engine.py"),
+    Path("generator/audio_engine.py"),
+]
 
 
-def check_required_files():
-    required_files = [
-        "config.json",
-        "data/quran.json",
-        "data/published.json",
-        "data/state.json"
-    ]
-
-    missing = []
-
-    for file in required_files:
-        if not os.path.exists(file):
-            missing.append(file)
-
-    return missing
+def check_required_files() -> list[str]:
+    return [str(path) for path in REQUIRED_FILES if not path.is_file()]
 
 
-def run_safety_check():
-    missing = check_required_files()
+def run_safety_check(raise_on_error: bool = False) -> bool:
+    errors = check_required_files()
+    quran_path = Path("data/quran.json")
 
-    if len(missing) > 0:
+    if quran_path.is_file():
+        try:
+            with quran_path.open("r", encoding="utf-8") as file:
+                quran = json.load(file)
+            if not isinstance(quran, list) or not quran:
+                errors.append("data/quran.json has no ayahs")
+        except (OSError, json.JSONDecodeError):
+            errors.append("data/quran.json is invalid JSON")
+
+    if errors:
         print("Safety Check Failed")
-        print("Missing files:")
-
-        for file in missing:
-            print("-", file)
-
+        for error in errors:
+            print("-", error)
+        if raise_on_error:
+            raise RuntimeError("Safety check failed: " + "; ".join(errors))
         return False
 
     print("Safety Check Passed")
