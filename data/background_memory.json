@@ -1,4 +1,11 @@
 {
-  "recent_backgrounds": [],
-  "history": []
+  "recent_backgrounds": [
+    "assets/backgrounds/quran_night_water.png"
+  ],
+  "history": [
+    {
+      "background": "assets/backgrounds/quran_night_water.png",
+      "used_at": "2026-07-23T07:38:37+00:00"
+    }
+  ]
 }
