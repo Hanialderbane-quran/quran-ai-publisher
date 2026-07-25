@@ -1,6 +1,9 @@
 name: Quran Publisher
 
 on:
+  push:
+    branches:
+      - fix/video-engine-syntax
   pull_request:
     branches:
       - main
@@ -33,7 +36,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: quran-publisher-${{ github.event.pull_request.number || github.event.schedule || inputs.video_type || 'manual' }}
+  group: quran-publisher-${{ github.event.pull_request.number || github.event.schedule || inputs.video_type || github.ref_name || 'manual' }}
   cancel-in-progress: false
 
 jobs:
@@ -42,12 +45,12 @@ jobs:
     timeout-minutes: 180
 
     env:
-      QURAN_AUDIO_MODE: ${{ github.event_name == 'pull_request' && 'test' || vars.QURAN_AUDIO_MODE || 'test' }}
-      ADVANCE_AFTER_RENDER: ${{ github.event_name == 'pull_request' && 'false' || vars.ADVANCE_AFTER_RENDER || 'true' }}
-      YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'pull_request' && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
+      QURAN_AUDIO_MODE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'test' || vars.QURAN_AUDIO_MODE || 'test' }}
+      ADVANCE_AFTER_RENDER: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.ADVANCE_AFTER_RENDER || 'true' }}
+      YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
       AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
-      QURAN_RENDER_SCALE: ${{ github.event_name == 'pull_request' && '0.35' || '1' }}
-      QURAN_FFMPEG_PRESET: ${{ github.event_name == 'pull_request' && 'ultrafast' || 'medium' }}
+      QURAN_RENDER_SCALE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && '0.35' || '1' }}
+      QURAN_FFMPEG_PRESET: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'ultrafast' || 'medium' }}
       QF_ENV: ${{ vars.QF_ENV || 'production' }}
       QF_CHAPTER_RECITER_ID: ${{ vars.QF_CHAPTER_RECITER_ID || '7' }}
       QF_RECITER_NAME: ${{ vars.QF_RECITER_NAME || 'قارئ القرآن الكريم' }}
@@ -119,7 +122,7 @@ jobs:
           ls -lh output/
 
       - name: Save publisher progress
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'push'
         run: |
           git config user.name "quran-ai-publisher[bot]"
           git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
