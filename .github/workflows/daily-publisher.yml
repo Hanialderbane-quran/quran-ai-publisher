@@ -46,6 +46,7 @@ jobs:
 
     env:
       QURAN_AUDIO_MODE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'test' || vars.QURAN_AUDIO_MODE || 'test' }}
+      ALLOW_SAMPLE_QURAN_DATASET: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'true' || 'false' }}
       ADVANCE_AFTER_RENDER: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.ADVANCE_AFTER_RENDER || 'true' }}
       YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
       AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
@@ -97,6 +98,18 @@ jobs:
         run: |
           python -m compileall -q main.py generator
 
+      - name: Prepare Quran dataset
+        run: |
+          python - <<'PY'
+          from generator.quran_dataset import ensure_quran_dataset, validate_complete_quran
+
+          data = ensure_quran_dataset()
+          valid, reason = validate_complete_quran(data)
+          print("Quran dataset status:", reason)
+          if not valid and not __import__('os').environ.get('ALLOW_SAMPLE_QURAN_DATASET', '').lower() == 'true':
+              raise SystemExit("Production requires a verified complete Quran dataset.")
+          PY
+
       - name: Run publisher
         run: |
           python main.py
@@ -126,11 +139,11 @@ jobs:
         run: |
           git config user.name "quran-ai-publisher[bot]"
           git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
-          git add data/progress_short.json data/progress_long.json data/background_memory.json 2>/dev/null || true
+          git add data/quran.json data/progress_short.json data/progress_long.json data/background_memory.json 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No progress changes to commit."
+            echo "No progress or dataset changes to commit."
           else
-            git commit -m "Update Quran publisher progress [skip ci]"
+            git commit -m "Update Quran publisher data [skip ci]"
             git push
           fi
 
