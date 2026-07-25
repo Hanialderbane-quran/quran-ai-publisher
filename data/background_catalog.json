@@ -1,11 +1,11 @@
 {
   "backgrounds": [
     {
-      "path": "assets/backgrounds/quran_night_water.png",
-      "category": "nature_water_mountains",
+      "path": "assets/backgrounds/golden_mihrab_scene.png",
+      "category": "nature_quran_approved",
       "approved": true,
       "contains_people": false,
-      "notes": "Procedurally generated; no people, faces, or logos."
+      "notes": "Golden Mihrab scenic background. No people, logos, or text."
     }
   ]
 }
