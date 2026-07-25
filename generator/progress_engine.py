@@ -17,6 +17,7 @@ DEFAULT_PROGRESS: dict[str, Any] = {
     "pending_segment": None,
     "completed_quran_cycles": 0,
     "last_completed_at": None,
+    "last_cycle_completed_at": None,
     "last_error": None,
 }
 
@@ -65,7 +66,15 @@ def load_progress(video_type: str | None = None) -> dict[str, Any]:
     progress = deepcopy(DEFAULT_PROGRESS)
     progress.update(loaded)
     progress["video_type"] = kind
-    progress["last_completed_global_ayah"] = int(progress.get("last_completed_global_ayah", 0))
+    try:
+        progress["last_completed_global_ayah"] = max(
+            0, int(progress.get("last_completed_global_ayah", 0))
+        )
+        progress["completed_quran_cycles"] = max(
+            0, int(progress.get("completed_quran_cycles", 0))
+        )
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid numeric progress in {path}.") from error
     pending = progress.get("pending_segment")
     if pending is not None and not isinstance(pending, dict):
         raise RuntimeError("pending_segment must be an object or null.")
@@ -116,6 +125,20 @@ def record_segment_error(message: str, video_type: str | None = None) -> None:
         "segment_id": pending.get("segment_id"),
     }
     save_progress(progress, kind)
+
+
+def start_new_quran_cycle(video_type: str | None = None) -> dict[str, Any]:
+    """Start again from Al-Fatihah after a completed dataset journey."""
+    kind = normalize_video_type(video_type)
+    progress = load_progress(kind)
+    if progress.get("pending_segment") is not None:
+        raise RuntimeError(f"Cannot start a new {kind} cycle while a segment is pending.")
+    progress["completed_quran_cycles"] = int(progress.get("completed_quran_cycles", 0)) + 1
+    progress["last_completed_global_ayah"] = 0
+    progress["last_cycle_completed_at"] = utc_now()
+    progress["last_error"] = None
+    save_progress(progress, kind)
+    return progress
 
 
 def mark_segment_completed(segment_id: str, video_type: str | None = None) -> dict[str, Any]:
