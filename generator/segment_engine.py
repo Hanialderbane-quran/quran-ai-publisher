@@ -1,7 +1,7 @@
 """
 Quran AI Publisher
 Ordered Quran Segment Engine
-Version 3.2
+Version 3.3
 
 Rules:
 - Quran is processed strictly in Mushaf order.
@@ -11,11 +11,13 @@ Rules:
 - Long surahs are divided into consecutive parts.
 - A failed pending part is reused unchanged.
 - A completed Quran journey starts a new counted cycle from Al-Fatihah.
+- Preview runs may choose a deterministic start without mutating progress.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -199,30 +201,53 @@ def _restore_pending_segment(pending: dict[str, Any], quran: list[dict[str, Any]
     return restored
 
 
+def _preview_start_global() -> int | None:
+    raw = os.getenv("QURAN_PREVIEW_START_GLOBAL", "").strip()
+    if not raw:
+        return None
+    value = _to_int(raw, "QURAN_PREVIEW_START_GLOBAL")
+    if value < 1:
+        raise RuntimeError("QURAN_PREVIEW_START_GLOBAL must be at least 1.")
+    return value
+
+
 def choose_segment(video_type: str = "long", save_selection: bool = True) -> dict[str, Any] | None:
     if video_type not in {"short", "long"}:
         raise RuntimeError("video_type must be short or long.")
+
     quran = load_quran()
-    pending = get_pending_segment(video_type)
-    if pending is not None:
-        print(f"Reusing pending {video_type} Quran segment:", pending["segment_id"])
-        return _restore_pending_segment(pending, quran)
-
-    progress = load_progress(video_type)
-    next_global = int(progress["last_completed_global_ayah"]) + 1
     by_global = {item["global_number"]: item for item in quran}
-    first = by_global.get(next_global)
+    preview_start = _preview_start_global()
 
-    if first is None and next_global > max(by_global):
-        progress = start_new_quran_cycle(video_type)
-        next_global = 1
-        first = by_global.get(1)
-        print(f"Started Quran cycle {int(progress['completed_quran_cycles']) + 1} for {video_type}.")
+    if preview_start is None:
+        pending = get_pending_segment(video_type)
+        if pending is not None:
+            print(f"Reusing pending {video_type} Quran segment:", pending["segment_id"])
+            return _restore_pending_segment(pending, quran)
 
-    if first is None:
-        raise RuntimeError(
-            f"Quran dataset is missing expected global ayah {next_global}; refusing to skip Quran text."
-        )
+        progress = load_progress(video_type)
+        next_global = int(progress["last_completed_global_ayah"]) + 1
+        first = by_global.get(next_global)
+
+        if first is None and next_global > max(by_global):
+            progress = start_new_quran_cycle(video_type)
+            next_global = 1
+            first = by_global.get(1)
+            print(f"Started Quran cycle {int(progress['completed_quran_cycles']) + 1} for {video_type}.")
+
+        if first is None:
+            raise RuntimeError(
+                f"Quran dataset is missing expected global ayah {next_global}; refusing to skip Quran text."
+            )
+        cycle = int(progress.get("completed_quran_cycles", 0))
+    else:
+        next_global = preview_start
+        first = by_global.get(next_global)
+        if first is None:
+            raise RuntimeError(f"Preview start global ayah {next_global} is not available.")
+        cycle = 0
+        save_selection = False
+        print(f"Preview mode: starting at global ayah {next_global} without changing progress.")
 
     _, maximum = get_duration_limits(video_type)
     remaining_in_surah: list[dict[str, Any]] = []
@@ -249,7 +274,7 @@ def choose_segment(video_type: str = "long", save_selection: bool = True) -> dic
 
     if not selected:
         selected = [first]
-    cycle = int(progress.get("completed_quran_cycles", 0))
+
     segment = _build_segment(selected, video_type, quran, maximum, cycle)
     if save_selection:
         set_pending_segment(segment, video_type)
