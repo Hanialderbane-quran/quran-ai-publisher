@@ -25,6 +25,9 @@ def validate(segment: dict, seo: dict) -> bool:
         if field not in segment:
             errors.append(f"Missing segment field: {field}")
 
+    if segment.get("video_type") not in {"short", "long"}:
+        errors.append("Video type must be short or long.")
+
     ayahs = segment.get("ayahs", [])
     if not isinstance(ayahs, list) or not ayahs:
         errors.append("Segment has no ayahs.")
@@ -96,6 +99,16 @@ def validate_output(video_path: str, manifest: dict) -> bool:
         errors.append("Manifest privacy is not private.")
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
+    if manifest.get("visual_engine_version") != "broadcast_identity_3.0":
+        errors.append("Expected broadcast visual engine was not used.")
+    if not manifest.get("visual_theme"):
+        errors.append("Visual theme is missing from the manifest.")
+    if manifest.get("layout") not in {"vertical_short", "horizontal_long"}:
+        errors.append("Video layout is invalid.")
+
+    expected_layout = "vertical_short" if manifest.get("video_type") == "short" else "horizontal_long"
+    if manifest.get("layout") != expected_layout:
+        errors.append("Video layout does not match its publishing type.")
 
     upload_enabled = env_true("YOUTUBE_UPLOAD_ENABLED", False)
     if upload_enabled:
