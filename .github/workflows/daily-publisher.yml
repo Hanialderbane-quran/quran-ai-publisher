@@ -1,6 +1,16 @@
 name: Quran Publisher
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "main.py"
+      - "config.json"
+      - "requirements.txt"
+      - "generator/**"
+      - "data/quran.json"
+      - ".github/workflows/daily-publisher.yml"
   workflow_dispatch:
     inputs:
       video_type:
@@ -23,7 +33,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: quran-publisher-${{ github.event.schedule || inputs.video_type || 'manual' }}
+  group: quran-publisher-${{ github.event.pull_request.number || github.event.schedule || inputs.video_type || 'manual' }}
   cancel-in-progress: false
 
 jobs:
@@ -32,10 +42,12 @@ jobs:
     timeout-minutes: 180
 
     env:
-      QURAN_AUDIO_MODE: ${{ vars.QURAN_AUDIO_MODE || 'test' }}
-      ADVANCE_AFTER_RENDER: ${{ vars.ADVANCE_AFTER_RENDER || 'true' }}
-      YOUTUBE_UPLOAD_ENABLED: ${{ vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
+      QURAN_AUDIO_MODE: ${{ github.event_name == 'pull_request' && 'test' || vars.QURAN_AUDIO_MODE || 'test' }}
+      ADVANCE_AFTER_RENDER: ${{ github.event_name == 'pull_request' && 'false' || vars.ADVANCE_AFTER_RENDER || 'true' }}
+      YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'pull_request' && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
       AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
+      QURAN_RENDER_SCALE: ${{ github.event_name == 'pull_request' && '0.35' || '1' }}
+      QURAN_FFMPEG_PRESET: ${{ github.event_name == 'pull_request' && 'ultrafast' || 'medium' }}
       QF_ENV: ${{ vars.QF_ENV || 'production' }}
       QF_CHAPTER_RECITER_ID: ${{ vars.QF_CHAPTER_RECITER_ID || '7' }}
       QF_RECITER_NAME: ${{ vars.QF_RECITER_NAME || 'قارئ القرآن الكريم' }}
@@ -91,10 +103,23 @@ jobs:
           VIDEO_FILE="$(find output -maxdepth 1 -type f -name '*.mp4' | head -n 1)"
           test -n "$VIDEO_FILE"
           test -s "$VIDEO_FILE"
-          ffprobe -v error -show_entries stream=index,codec_type,codec_name -of default=noprint_wrappers=1 "$VIDEO_FILE"
+          ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,duration -of default=noprint_wrappers=1 "$VIDEO_FILE"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('output/manifest.json').read_text(encoding='utf-8'))
+          required = ['segment_id', 'video_type', 'visual_engine_version', 'visual_theme', 'layout']
+          missing = [key for key in required if not manifest.get(key)]
+          if missing:
+              raise SystemExit('Manifest missing visual fields: ' + ', '.join(missing))
+          print('Visual theme:', manifest['visual_theme'])
+          print('Layout:', manifest['layout'])
+          PY
           ls -lh output/
 
       - name: Save publisher progress
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "quran-ai-publisher[bot]"
           git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
