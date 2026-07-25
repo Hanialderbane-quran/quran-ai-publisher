@@ -400,11 +400,11 @@ def build_text_renderer(segment: dict, audio_package: dict, width: int, height: 
         # header plaque
         head = header_panel_rect(width, height)
         rounded_panel(draw, head, (9, 25, 38, 210), (214, 182, 96, 255), max(18, int(min(width, height) * 0.018)), width=max(2, int(3 * scale)))
-        title = f"سورة {segment['surah']}"
+        title = f"Ø³ÙØ±Ø© {segment['surah']}"
         draw.text(((head[0] + head[2]) // 2, int((head[1] + head[3]) / 2) - int(title_font.size * 0.10)), title, font=title_font, fill=(246, 230, 185, 255), anchor="mm", direction="rtl", language="ar")
 
         ayah = segment["ayahs"][ayah_index]
-        badge_text = f"الآية {ayah['ayah']}"
+        badge_text = f"Ø§ÙØ¢ÙØ© {ayah['ayah']}"
         badge_w = int(width * 0.22) if height > width else int(width * 0.15)
         badge_h = int(height * 0.045)
         badge_x = width // 2 - badge_w // 2
@@ -460,7 +460,7 @@ def build_text_renderer(segment: dict, audio_package: dict, width: int, height: 
 
         # footer info row
         foot_y = text_rect[3] - int(panel_h * 0.12)
-        reciter_label = reciter_name if reciter_name else "القرآن الكريم"
+        reciter_label = reciter_name if reciter_name else "Ø§ÙÙØ±Ø¢Ù Ø§ÙÙØ±ÙÙ"
         draw.text((width // 2, foot_y), reciter_label, font=footer_font, fill=(221, 228, 226, 245), anchor="mm", direction="rtl", language="ar")
         return layer
 
@@ -482,6 +482,7 @@ def save_metadata(segment: dict, seo: dict, audio_package: dict, video_path: Pat
         "end_ayah": segment["end_ayah"],
         "video_path": str(video_path),
         "preview_path": str(preview_path),
+        "privacy_status": str(seo.get("privacy_status", "private")),
         "audio_mode": audio_package.get("audio_mode"),
         "test_mode": bool(audio_package.get("test_mode")),
         "exact_ayah_sync": bool(audio_package.get("exact_ayah_sync")),
@@ -519,7 +520,7 @@ def build_video(segment: dict, seo: dict) -> str:
     timeline_starts = [float(item["start"]) for item in timeline]
     base_bg = make_canvas_bg(width, height)
     mrect = mihrab_rect(width, height)
-    reciter_name = str(audio_package.get("reciter", {}).get("name", "")).strip() or "القرآن الكريم"
+    reciter_name = str(audio_package.get("reciter", {}).get("name", "")).strip() or "Ø§ÙÙØ±Ø¢Ù Ø§ÙÙØ±ÙÙ"
 
     def make_frame(t: float):
         frame = base_bg.copy()
