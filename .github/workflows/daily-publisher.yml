@@ -19,11 +19,11 @@ on:
       video_type:
         description: "Choose short or long"
         required: true
-        default: "short"
+        default: "long"
         type: choice
         options:
-          - short
           - long
+          - short
   schedule:
     # Jordan time is UTC+3.
     # Shorts: every day at 09:00 and 19:00 Jordan time.
@@ -45,14 +45,13 @@ jobs:
     timeout-minutes: 180
 
     env:
-      QURAN_AUDIO_MODE: ${{ github.event_name == 'push' && 'qf' || github.event_name == 'pull_request' && 'test' || vars.QURAN_AUDIO_MODE || 'test' }}
       ALLOW_SAMPLE_QURAN_DATASET: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
       ADVANCE_AFTER_RENDER: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.ADVANCE_AFTER_RENDER || 'true' }}
-      YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
+      YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
       AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
-      QURAN_PREVIEW_START_GLOBAL: ${{ github.event_name == 'push' && '1' || '' }}
-      QURAN_RENDER_SCALE: ${{ github.event_name == 'push' && '0.5' || github.event_name == 'pull_request' && '0.35' || '1' }}
-      QURAN_FFMPEG_PRESET: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'ultrafast' || 'medium' }}
+      QURAN_PREVIEW_START_GLOBAL: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && '1' || '' }}
+      QURAN_RENDER_SCALE: ${{ github.event_name == 'pull_request' && '0.35' || github.event_name == 'push' && '0.5' || github.event_name == 'workflow_dispatch' && '0.65' || '1' }}
+      QURAN_FFMPEG_PRESET: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ultrafast' || 'medium' }}
       QF_ENV: ${{ vars.QF_ENV || 'production' }}
       QF_CHAPTER_RECITER_ID: ${{ vars.QF_CHAPTER_RECITER_ID || '7' }}
       QF_RECITER_NAME: ${{ vars.QF_RECITER_NAME || 'قارئ القرآن الكريم' }}
@@ -66,7 +65,7 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v6
 
-      - name: Select publishing type
+      - name: Select publishing mode
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -78,9 +77,17 @@ jobs:
           else
             TYPE="short"
           fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            AUDIO_MODE="test"
+          else
+            AUDIO_MODE="qf"
+          fi
+
           echo "VIDEO_TYPE=$TYPE" >> "$GITHUB_ENV"
+          echo "QURAN_AUDIO_MODE=$AUDIO_MODE" >> "$GITHUB_ENV"
           echo "Publishing type: $TYPE"
-          echo "Audio mode: $QURAN_AUDIO_MODE"
+          echo "Audio mode: $AUDIO_MODE"
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -105,22 +112,23 @@ jobs:
       - name: Prepare Quran dataset
         run: |
           python - <<'PY'
+          import os
           from generator.quran_dataset import ensure_quran_dataset, validate_complete_quran
 
           data = ensure_quran_dataset()
           valid, reason = validate_complete_quran(data)
           print("Quran dataset status:", reason)
-          if not valid and not __import__('os').environ.get('ALLOW_SAMPLE_QURAN_DATASET', '').lower() == 'true':
+          if not valid and os.environ.get("ALLOW_SAMPLE_QURAN_DATASET", "").lower() != "true":
               raise SystemExit("Production requires a verified complete Quran dataset.")
           PY
 
       - name: Verify recitation credentials
-        if: github.event_name == 'push'
+        if: env.QURAN_AUDIO_MODE == 'qf'
         shell: bash
         run: |
           if [ -z "$QF_CLIENT_ID" ] || [ -z "$QF_CLIENT_SECRET" ]; then
             echo "Quran Foundation credentials are missing."
-            echo "Add repository secrets QF_CLIENT_ID and QF_CLIENT_SECRET, then re-run this workflow."
+            echo "Add repository secrets QF_CLIENT_ID and QF_CLIENT_SECRET, then run the workflow again."
             exit 1
           fi
           echo "Quran Foundation credentials are available."
@@ -129,7 +137,7 @@ jobs:
         run: |
           python main.py
 
-      - name: Inspect generated video
+      - name: Inspect generated video and audio
         run: |
           VIDEO_FILE="$(find output -maxdepth 1 -type f -name '*.mp4' | head -n 1)"
           test -n "$VIDEO_FILE"
@@ -137,25 +145,36 @@ jobs:
           ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,duration -of default=noprint_wrappers=1 "$VIDEO_FILE"
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
-          manifest = json.loads(Path('output/manifest.json').read_text(encoding='utf-8'))
-          required = ['segment_id', 'video_type', 'visual_engine_version', 'visual_theme', 'layout', 'audio_mode']
-          missing = [key for key in required if not manifest.get(key)]
+          manifest = json.loads(Path("output/manifest.json").read_text(encoding="utf-8"))
+          required = [
+              "segment_id", "video_type", "visual_engine_version",
+              "visual_theme", "layout", "audio_mode", "test_mode"
+          ]
+          missing = [key for key in required if key not in manifest]
           if missing:
-              raise SystemExit('Manifest missing fields: ' + ', '.join(missing))
-          if manifest['video_type'] != 'long' and __import__('os').environ.get('GITHUB_EVENT_NAME') == 'push':
-              raise SystemExit('Development push must generate a long video preview.')
-          if __import__('os').environ.get('GITHUB_EVENT_NAME') == 'push' and manifest['audio_mode'] != 'qf':
-              raise SystemExit('Development push must use real Quran Foundation audio.')
-          print('Visual theme:', manifest['visual_theme'])
-          print('Layout:', manifest['layout'])
-          print('Audio mode:', manifest['audio_mode'])
+              raise SystemExit("Manifest missing fields: " + ", ".join(missing))
+
+          expected_type = os.environ.get("VIDEO_TYPE")
+          expected_audio = os.environ.get("QURAN_AUDIO_MODE")
+          if manifest.get("video_type") != expected_type:
+              raise SystemExit(f"Expected {expected_type} video, got {manifest.get('video_type')}.")
+          if manifest.get("audio_mode") != expected_audio:
+              raise SystemExit(f"Expected {expected_audio} audio, got {manifest.get('audio_mode')}.")
+          if expected_audio == "qf" and manifest.get("test_mode"):
+              raise SystemExit("Real-audio run produced a silent test package; refusing the result.")
+
+          print("Visual theme:", manifest["visual_theme"])
+          print("Layout:", manifest["layout"])
+          print("Audio mode:", manifest["audio_mode"])
+          print("Reciter:", manifest.get("reciter"))
           PY
           ls -lh output/
 
       - name: Save publisher progress
-        if: github.event_name != 'pull_request' && github.event_name != 'push'
+        if: github.event_name == 'schedule'
         run: |
           git config user.name "quran-ai-publisher[bot]"
           git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
@@ -179,6 +198,7 @@ jobs:
             output/tags.json
             output/report.json
             output/manifest.json
+            output/audio/*.mp3
             output/audio/timings/*.json
           if-no-files-found: error
           retention-days: 7
