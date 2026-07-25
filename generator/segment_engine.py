@@ -1,21 +1,20 @@
 """
 Quran AI Publisher
 Ordered Quran Segment Engine
-Version 3.0
+Version 3.1
 
 Rules:
 - Quran is processed strictly in Mushaf order.
+- Short and long publishing journeys keep independent progress.
 - A segment never crosses from one surah into another.
 - Short surahs are kept complete when they fit.
 - Long surahs are divided into consecutive parts.
 - A failed pending part is reused unchanged.
 """
-
 from __future__ import annotations
 
 import hashlib
 import json
-import math
 from pathlib import Path
 from typing import Any
 
@@ -57,10 +56,8 @@ def normalize_ayah(raw: dict[str, Any]) -> dict[str, Any]:
     global_number = raw.get("global_number") or raw.get("global_ayah") or raw.get("number")
     surah_number = raw.get("surah_number") or raw.get("chapter") or raw.get("surah_id")
     text = raw.get("text") or raw.get("text_uthmani") or raw.get("arabic")
-
     if not surah or ayah_number is None or global_number is None or not str(text or "").strip():
         raise RuntimeError("Invalid Quran ayah data.")
-
     normalized = {
         "surah": str(surah).strip(),
         "ayah": _to_int(ayah_number, "ayah number"),
@@ -76,10 +73,8 @@ def load_quran() -> list[dict[str, Any]]:
     data = load_json(QURAN_FILE, [])
     if not isinstance(data, list) or not data:
         raise RuntimeError("data/quran.json must contain Quran ayahs.")
-
     quran = [normalize_ayah(item) for item in data]
     quran.sort(key=lambda item: item["global_number"])
-
     seen: set[int] = set()
     previous = 0
     for ayah in quran:
@@ -101,22 +96,15 @@ def get_duration_limits(video_type: str) -> tuple[float, float]:
     publishing = load_config().get("publishing", {})
     if video_type == "short":
         settings = publishing.get("shorts", {})
-        return (
-            float(settings.get("minimum_duration_seconds", 8)),
-            float(settings.get("maximum_duration_seconds", 60)),
-        )
+        return float(settings.get("minimum_duration_seconds", 8)), float(settings.get("maximum_duration_seconds", 60))
     if video_type == "long":
         settings = publishing.get("long_videos", {})
-        return (
-            float(settings.get("minimum_duration_minutes", 10)) * 60,
-            float(settings.get("maximum_duration_minutes", 25)) * 60,
-        )
+        return float(settings.get("minimum_duration_minutes", 10)) * 60, float(settings.get("maximum_duration_minutes", 25)) * 60
     raise ValueError("video_type must be 'short' or 'long'.")
 
 
 def build_segment_id(start_global: int, end_global: int, video_type: str) -> str:
-    raw = f"{start_global}|{end_global}|{video_type}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+    return hashlib.sha256(f"{start_global}|{end_global}|{video_type}".encode("utf-8")).hexdigest()[:20]
 
 
 def _same_surah(first: dict[str, Any], second: dict[str, Any]) -> bool:
@@ -133,7 +121,6 @@ def _partition_surah(ayahs: list[dict[str, Any]], maximum: float) -> list[list[d
     parts: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     current_duration = 0.0
-
     for ayah in ayahs:
         duration = estimate_ayah_duration(ayah)
         if current and current_duration + duration > maximum:
@@ -142,7 +129,6 @@ def _partition_surah(ayahs: list[dict[str, Any]], maximum: float) -> list[list[d
             current_duration = 0.0
         current.append(ayah)
         current_duration += duration
-
     if current:
         parts.append(current)
     return parts
@@ -152,10 +138,7 @@ def _part_metadata(quran: list[dict[str, Any]], selected: list[dict[str, Any]], 
     entire_surah = _surah_ayahs(quran, selected[0])
     parts = _partition_surah(entire_surah, maximum)
     start_global = selected[0]["global_number"]
-    part_index = next(
-        (index for index, part in enumerate(parts) if part[0]["global_number"] == start_global),
-        0,
-    )
+    part_index = next((i for i, part in enumerate(parts) if part[0]["global_number"] == start_global), 0)
     return {
         "part_number": part_index + 1,
         "total_parts": len(parts),
@@ -165,12 +148,7 @@ def _part_metadata(quran: list[dict[str, Any]], selected: list[dict[str, Any]], 
     }
 
 
-def _build_segment(
-    ayahs: list[dict[str, Any]],
-    video_type: str,
-    quran: list[dict[str, Any]],
-    maximum: float,
-) -> dict[str, Any]:
+def _build_segment(ayahs: list[dict[str, Any]], video_type: str, quran: list[dict[str, Any]], maximum: float) -> dict[str, Any]:
     first, last = ayahs[0], ayahs[-1]
     duration = sum(estimate_ayah_duration(item) for item in ayahs)
     segment = {
@@ -188,11 +166,7 @@ def _build_segment(
         "ayahs": ayahs,
     }
     segment.update(_part_metadata(quran, ayahs, maximum))
-    segment["display_part"] = (
-        "السورة كاملة"
-        if segment["is_complete_surah"]
-        else f"الجزء {segment['part_number']} من {segment['total_parts']}"
-    )
+    segment["display_part"] = "السورة كاملة" if segment["is_complete_surah"] else f"الجزء {segment['part_number']} من {segment['total_parts']}"
     return segment
 
 
@@ -202,7 +176,6 @@ def _restore_pending_segment(pending: dict[str, Any], quran: list[dict[str, Any]
     ayahs = [a for a in quran if start <= a["global_number"] <= end]
     if len(ayahs) != end - start + 1:
         raise RuntimeError("Pending segment cannot be restored.")
-
     video_type = str(pending.get("video_type", "long"))
     _, maximum = get_duration_limits(video_type)
     restored = _build_segment(ayahs, video_type, quran, maximum)
@@ -212,18 +185,19 @@ def _restore_pending_segment(pending: dict[str, Any], quran: list[dict[str, Any]
 
 
 def choose_segment(video_type: str = "long", save_selection: bool = True) -> dict[str, Any] | None:
+    if video_type not in {"short", "long"}:
+        raise RuntimeError("video_type must be short or long.")
     quran = load_quran()
-
-    pending = get_pending_segment()
+    pending = get_pending_segment(video_type)
     if pending is not None:
-        print("Reusing pending Quran segment:", pending["segment_id"])
+        print(f"Reusing pending {video_type} Quran segment:", pending["segment_id"])
         return _restore_pending_segment(pending, quran)
 
-    next_global = int(load_progress()["last_completed_global_ayah"]) + 1
+    next_global = int(load_progress(video_type)["last_completed_global_ayah"]) + 1
     by_global = {item["global_number"]: item for item in quran}
     first = by_global.get(next_global)
     if first is None:
-        print("The available Quran dataset has been completed.")
+        print(f"The {video_type} Quran journey has completed the available dataset.")
         return None
 
     _, maximum = get_duration_limits(video_type)
@@ -251,8 +225,7 @@ def choose_segment(video_type: str = "long", save_selection: bool = True) -> dic
 
     if not selected:
         selected = [first]
-
     segment = _build_segment(selected, video_type, quran, maximum)
     if save_selection:
-        set_pending_segment(segment)
+        set_pending_segment(segment, video_type)
     return segment
