@@ -3,44 +3,40 @@
   "channel_name": "قناة القرآن الكريم",
   "channel_type": "quran",
   "language": "ar",
-
   "publishing": {
     "enabled": true,
     "default_privacy": "private",
     "publish_only_after_validation": true,
-
+    "journey_mode": "ordered_surah_parts",
     "shorts": {
       "enabled": true,
       "videos_per_day": 2,
-      "minimum_duration_seconds": 8,
-      "maximum_duration_seconds": 60
+      "minimum_duration_seconds": 20,
+      "maximum_duration_seconds": 58,
+      "publish_times_jordan": ["09:00", "19:00"]
     },
-
     "long_videos": {
       "enabled": true,
-      "videos_per_week": 4,
+      "videos_per_week": 5,
       "minimum_duration_minutes": 10,
       "maximum_duration_minutes": 25,
-      "publish_days": [
-        "saturday",
-        "monday",
-        "wednesday",
-        "friday"
-      ]
+      "publish_days": ["saturday", "sunday", "monday", "wednesday", "friday"],
+      "publish_time_jordan": "20:00"
     }
   },
-
   "quran_content": {
     "complete_quran_required": true,
     "use_consecutive_ayahs": true,
     "split_only_between_ayahs": true,
+    "never_cross_surah_boundary": true,
+    "continue_next_part_in_order": true,
+    "separate_short_and_long_progress": true,
     "allow_single_ayah_only_when_long": true,
     "prevent_repeated_segments": true,
     "verify_surah_name": true,
     "verify_ayah_numbers": true,
     "verify_quran_text": true
   },
-
   "audio_safety": {
     "require_approved_source": true,
     "block_unknown_reciters": true,
@@ -49,9 +45,12 @@
     "allow_background_music": false,
     "allow_sound_effects": false
   },
-
   "visual_identity": {
-    "theme": "professional_quran",
+    "theme": "original_broadcast_quran",
+    "quality_level": "satellite_channel",
+    "template_family": "cinematic_mihrab",
+    "separate_templates_for_short_and_long": true,
+    "vary_template_by_surah": true,
     "respectful_motion_only": true,
     "animated_backgrounds": true,
     "prevent_recent_background_reuse": true,
@@ -77,15 +76,18 @@
     "text_animation": "soft_fade",
     "background_motion": "slow_cinematic",
     "show_quran_text_clearly": true,
-    "use_full_diacritics": true
+    "use_full_diacritics": true,
+    "show_surah_part_number": true,
+    "highlight_current_word": true,
+    "require_exact_word_sync_for_upload": true
   },
-
   "quality_and_safety": {
     "block_upload_on_any_error": true,
     "validate_audio": true,
     "validate_video": true,
     "validate_text": true,
     "validate_synchronization": true,
+    "require_exact_word_sync_for_upload": true,
     "validate_duplicate_content": true,
     "create_validation_report": true
   }

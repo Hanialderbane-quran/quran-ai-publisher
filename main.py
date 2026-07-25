@@ -13,6 +13,13 @@ from generator.report_engine import create_report
 from generator.safety import run_safety_check
 from generator.tasks import run_tasks
 from generator.uploader import upload_if_enabled
+
+# Replace the legacy credential-based audio function before video_engine imports it.
+from generator import audio_engine as legacy_audio_engine
+from generator.cdn_audio_engine import get_segment_audio_package as get_cdn_audio_package
+
+legacy_audio_engine.get_segment_audio_package = get_cdn_audio_package
+
 from generator.video_engine import build_video
 
 MANIFEST_FILE = Path("output/manifest.json")
@@ -43,13 +50,15 @@ def read_manifest() -> dict:
 def start() -> None:
     print("========== Quran AI Publisher ==========")
     segment_id = None
+    video_type = os.getenv("VIDEO_TYPE", "short").strip().lower()
 
     try:
         run_tasks()
         run_safety_check(raise_on_error=True)
-
         config = load_config()
         print("Channel:", config.get("channel_name", "Quran Channel"))
+        print("Video type:", video_type)
+        print("Audio source: Al Quran Cloud CDN")
         print("UTC time:", datetime.now(timezone.utc).isoformat())
 
         result = think()
@@ -60,6 +69,7 @@ def start() -> None:
         segment = result["segment"]
         seo = result["seo"]
         segment_id = str(segment["segment_id"])
+        video_type = str(segment["video_type"])
 
         if not validate(segment, seo):
             raise RuntimeError("Pre-render quality check failed.")
@@ -76,17 +86,14 @@ def start() -> None:
             seo=seo,
             manifest=manifest,
         )
-
         upload_enabled = env_true("YOUTUBE_UPLOAD_ENABLED", False)
         advance_after_render = env_true("ADVANCE_AFTER_RENDER", True)
-
-        should_advance = (
-            upload_result.get("status") == "uploaded"
-            or (not upload_enabled and advance_after_render)
+        should_advance = upload_result.get("status") == "uploaded" or (
+            not upload_enabled and advance_after_render
         )
 
         if should_advance:
-            mark_segment_completed(segment_id)
+            mark_segment_completed(segment_id, video_type)
             progress_status = "advanced"
         else:
             progress_status = "kept_pending"
@@ -110,7 +117,7 @@ def start() -> None:
 
     except Exception as error:
         if segment_id:
-            record_segment_error(str(error))
+            record_segment_error(str(error), video_type)
         print("Publisher failed:", error)
         raise
 

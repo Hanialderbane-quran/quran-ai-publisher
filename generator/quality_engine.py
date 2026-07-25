@@ -1,8 +1,16 @@
 """Pre-render and post-render quality checks."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+
+def env_true(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def validate(segment: dict, seo: dict) -> bool:
@@ -10,23 +18,22 @@ def validate(segment: dict, seo: dict) -> bool:
     required_segment = [
         "segment_id", "surah", "start_ayah", "end_ayah",
         "start_global_number", "end_global_number", "ayahs", "text",
-        "video_type",
+        "video_type", "part_number", "total_parts", "display_part",
     ]
 
     for field in required_segment:
         if field not in segment:
             errors.append(f"Missing segment field: {field}")
 
+    if segment.get("video_type") not in {"short", "long"}:
+        errors.append("Video type must be short or long.")
+
     ayahs = segment.get("ayahs", [])
     if not isinstance(ayahs, list) or not ayahs:
         errors.append("Segment has no ayahs.")
     else:
-        globals_list = [
-            int(item.get("global_number", -1)) for item in ayahs
-        ]
-        expected = list(
-            range(globals_list[0], globals_list[0] + len(globals_list))
-        )
+        globals_list = [int(item.get("global_number", -1)) for item in ayahs]
+        expected = list(range(globals_list[0], globals_list[0] + len(globals_list)))
         if globals_list != expected:
             errors.append("Ayahs are not consecutive.")
         if any(not str(item.get("text", "")).strip() for item in ayahs):
@@ -34,6 +41,11 @@ def validate(segment: dict, seo: dict) -> bool:
         surahs = {str(item.get("surah", "")) for item in ayahs}
         if len(surahs) != 1:
             errors.append("One segment cannot cross between surahs.")
+
+    if int(segment.get("part_number", 0)) < 1:
+        errors.append("Invalid surah part number.")
+    if int(segment.get("total_parts", 0)) < int(segment.get("part_number", 0)):
+        errors.append("Invalid total surah parts.")
 
     if not str(seo.get("title", "")).strip():
         errors.append("Missing title.")
@@ -87,6 +99,37 @@ def validate_output(video_path: str, manifest: dict) -> bool:
         errors.append("Manifest privacy is not private.")
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
+
+    visual_engine_version = str(manifest.get("visual_engine_version", ""))
+    if not visual_engine_version.startswith("broadcast_identity_3."):
+        errors.append("Expected broadcast visual engine was not used.")
+
+    if not manifest.get("visual_theme"):
+        errors.append("Visual theme is missing from the manifest.")
+    if manifest.get("layout") not in {"vertical_short", "horizontal_long"}:
+        errors.append("Video layout is invalid.")
+
+    expected_layout = "vertical_short" if manifest.get("video_type") == "short" else "horizontal_long"
+    if manifest.get("layout") != expected_layout:
+        errors.append("Video layout does not match its publishing type.")
+
+    branding = manifest.get("branding", {})
+    if visual_engine_version == "broadcast_identity_3.1":
+        if not isinstance(branding, dict) or not branding.get("enabled"):
+            errors.append("Channel branding is missing from the rendered video manifest.")
+        if not str(branding.get("channel_name", "")).strip():
+            errors.append("Channel name is missing from video branding.")
+
+    upload_enabled = env_true("YOUTUBE_UPLOAD_ENABLED", False)
+    if upload_enabled:
+        if manifest.get("test_mode"):
+            errors.append("Test or silent audio cannot be uploaded.")
+        if not manifest.get("exact_ayah_sync"):
+            errors.append("Exact ayah synchronization is required for upload.")
+        if not manifest.get("exact_word_sync"):
+            errors.append("Exact word synchronization is required for upload.")
+        if not manifest.get("rights_confirmed"):
+            errors.append("Audio publishing rights must be confirmed before upload.")
 
     print("========== POST-RENDER QUALITY ==========")
     if errors:
