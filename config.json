@@ -8,10 +8,11 @@
     "enabled": true,
     "default_privacy": "private",
     "publish_only_after_validation": true,
+    "journey_mode": "ordered_surah_parts",
 
     "shorts": {
-      "enabled": true,
-      "videos_per_day": 2,
+      "enabled": false,
+      "videos_per_day": 0,
       "minimum_duration_seconds": 8,
       "maximum_duration_seconds": 60
     },
@@ -34,6 +35,8 @@
     "complete_quran_required": true,
     "use_consecutive_ayahs": true,
     "split_only_between_ayahs": true,
+    "never_cross_surah_boundary": true,
+    "continue_next_part_in_order": true,
     "allow_single_ayah_only_when_long": true,
     "prevent_repeated_segments": true,
     "verify_surah_name": true,
@@ -51,7 +54,8 @@
   },
 
   "visual_identity": {
-    "theme": "professional_quran",
+    "theme": "broadcast_quran_gold",
+    "quality_level": "satellite_channel",
     "respectful_motion_only": true,
     "animated_backgrounds": true,
     "prevent_recent_background_reuse": true,
@@ -77,7 +81,10 @@
     "text_animation": "soft_fade",
     "background_motion": "slow_cinematic",
     "show_quran_text_clearly": true,
-    "use_full_diacritics": true
+    "use_full_diacritics": true,
+    "show_surah_part_number": true,
+    "highlight_current_word": true,
+    "require_exact_word_sync_for_upload": true
   },
 
   "quality_and_safety": {
@@ -86,6 +93,7 @@
     "validate_video": true,
     "validate_text": true,
     "validate_synchronization": true,
+    "require_exact_word_sync_for_upload": true,
     "validate_duplicate_content": true,
     "create_validation_report": true
   }
