@@ -99,8 +99,11 @@ def validate_output(video_path: str, manifest: dict) -> bool:
         errors.append("Manifest privacy is not private.")
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
-    if manifest.get("visual_engine_version") != "broadcast_identity_3.0":
+
+    visual_engine_version = str(manifest.get("visual_engine_version", ""))
+    if not visual_engine_version.startswith("broadcast_identity_3."):
         errors.append("Expected broadcast visual engine was not used.")
+
     if not manifest.get("visual_theme"):
         errors.append("Visual theme is missing from the manifest.")
     if manifest.get("layout") not in {"vertical_short", "horizontal_long"}:
@@ -109,6 +112,13 @@ def validate_output(video_path: str, manifest: dict) -> bool:
     expected_layout = "vertical_short" if manifest.get("video_type") == "short" else "horizontal_long"
     if manifest.get("layout") != expected_layout:
         errors.append("Video layout does not match its publishing type.")
+
+    branding = manifest.get("branding", {})
+    if visual_engine_version == "broadcast_identity_3.1":
+        if not isinstance(branding, dict) or not branding.get("enabled"):
+            errors.append("Channel branding is missing from the rendered video manifest.")
+        if not str(branding.get("channel_name", "")).strip():
+            errors.append("Channel name is missing from video branding.")
 
     upload_enabled = env_true("YOUTUBE_UPLOAD_ENABLED", False)
     if upload_enabled:
