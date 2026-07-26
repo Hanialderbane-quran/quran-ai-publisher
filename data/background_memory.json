@@ -1,9 +1,9 @@
 {
   "recent_backgrounds": [
-    "assets/backgrounds/quran_night_water.png",
     "desert_twilight",
     "islamic_lanterns",
-    "mosque_lake"
+    "mosque_lake",
+    "mosque_sunset"
   ],
   "history": [
     {
@@ -21,6 +21,10 @@
     {
       "background": "mosque_lake",
       "segment_id": "c25cfc0e295f93879b94"
+    },
+    {
+      "background": "mosque_sunset",
+      "segment_id": "ebb8d063f971b37ac8e5"
     }
   ]
 }
