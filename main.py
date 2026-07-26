@@ -54,8 +54,9 @@ def start() -> None:
 
         result = think()
         if result is None:
-            print("Nothing new to render.")
-            return
+            raise RuntimeError(
+                "No Quran segment was selected. The dataset may be incomplete or progress may be past the available ayahs."
+            )
 
         segment = result["segment"]
         seo = result["seo"]
