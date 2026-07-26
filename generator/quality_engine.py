@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 EXPECTED_CHANNEL = "التجارة مع الله"
-ALLOWED_ENGINES = {"broadcast_identity_4.0"}
+ALLOWED_ENGINES = {"cinematic_mosque_5.0"}
 
 
 def validate(segment: dict, seo: dict) -> bool:
@@ -83,13 +83,21 @@ def validate_output(video_path: str, manifest: dict) -> bool:
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
     if manifest.get("visual_engine_version") not in ALLOWED_ENGINES:
-        errors.append("Expected broadcast visual engine was not used.")
+        errors.append("Expected cinematic mosque visual engine was not used.")
     if manifest.get("channel_name") != EXPECTED_CHANNEL:
         errors.append("Channel identity is missing or incorrect.")
     if manifest.get("watermark_enabled") is not True:
         errors.append("Channel watermark is not enabled.")
     if not str(manifest.get("background_theme", "")).strip():
         errors.append("Background theme is missing from manifest.")
+    if manifest.get("audio_mode") != "cdn":
+        errors.append("Production audio mode must be cdn.")
+    if manifest.get("test_mode") is not False:
+        errors.append("Silent test audio is not allowed.")
+    if manifest.get("exact_ayah_sync") is not True:
+        errors.append("Exact ayah synchronization is required.")
+    if not str(manifest.get("reciter", {}).get("name", "")).strip():
+        errors.append("Reciter name is missing.")
 
     print("========== POST-RENDER QUALITY ==========")
     if errors:
