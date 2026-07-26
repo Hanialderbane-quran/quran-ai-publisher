@@ -41,6 +41,8 @@ jobs:
     steps:
       - name: Checkout project
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -90,18 +92,6 @@ jobs:
           PY
           ls -lh output/
 
-      - name: Save publisher progress
-        run: |
-          git config user.name "quran-ai-publisher[bot]"
-          git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
-          git add data/progress.json data/background_memory.json 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No progress changes to commit."
-          else
-            git commit -m "Update Quran publisher progress [skip ci]"
-            git push
-          fi
-
       - name: Upload generated files
         uses: actions/upload-artifact@v6
         with:
@@ -117,3 +107,26 @@ jobs:
             output/audio/timings/*.json
           if-no-files-found: error
           retention-days: 7
+
+      - name: Save publisher progress
+        continue-on-error: true
+        run: |
+          git config user.name "quran-ai-publisher[bot]"
+          git config user.email "quran-ai-publisher[bot]@users.noreply.github.com"
+          git add data/progress.json data/background_memory.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No progress changes to commit."
+            exit 0
+          fi
+          git commit -m "Update Quran publisher progress [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              echo "Publisher progress saved."
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 2))
+          done
+          echo "Video artifact was uploaded, but progress could not be pushed this run."
+          exit 0
