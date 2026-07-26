@@ -59,15 +59,30 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install --upgrade yt-dlp
 
-      - name: Build local animated backgrounds
+      - name: Download real mosque backgrounds
         run: |
+          rm -rf assets/background_videos
           python generator/build_background_library.py
-          test "$(find assets/background_videos -maxdepth 1 -type f -name '*.mp4' | wc -l)" -ge 6
+          test "$(find assets/background_videos -maxdepth 1 -type f -name '*.mp4' | wc -l)" -ge 3
           for file in assets/background_videos/*.mp4; do
             test -s "$file"
             ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 "$file"
           done
+
+      - name: Verify complete Al-Fatiha data
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          quran = json.loads(Path('data/quran.json').read_text(encoding='utf-8'))
+          assert len(quran) >= 7
+          fatiha = [a for a in quran if int(a['surah_number']) == 1]
+          assert [int(a['ayah']) for a in fatiha] == list(range(1, 8))
+          assert fatiha[-1]['text'].strip().endswith('الضَّالِّينَ')
+          print('Al-Fatiha dataset: 7/7 ayahs')
+          PY
 
       - name: Verify Python files
         run: |
@@ -92,8 +107,12 @@ jobs:
           assert manifest['visual_engine_version'] == 'local_background_library_6.0'
           assert manifest['channel_name'] == 'التجارة مع الله'
           assert manifest['watermark_enabled'] is True
-          assert manifest['background_theme'].startswith('royal_mosque_')
-          assert manifest['background_source'] == 'generated-local'
+          assert manifest['surah'] == 'الفاتحة'
+          assert manifest['start_ayah'] == 1
+          assert manifest['end_ayah'] == 7
+          assert manifest['background_theme'].startswith('real_mosque_')
+          assert manifest['background_source'] == 'pixabay-real-footage'
+          assert manifest['background_license'] == 'Pixabay Content License'
           assert manifest['audio_mode'] == 'cdn'
           assert manifest['test_mode'] is False
           assert manifest['exact_ayah_sync'] is True
