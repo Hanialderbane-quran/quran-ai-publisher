@@ -11,6 +11,7 @@ on:
       - "main.py"
       - "generator/**"
       - "config.json"
+      - "data/**"
       - ".github/workflows/daily-publisher.yml"
 
 permissions:
@@ -27,7 +28,7 @@ jobs:
 
     env:
       QURAN_CHANNEL_NAME: "التجارة مع الله"
-      QURAN_AUDIO_MODE: ${{ vars.QURAN_AUDIO_MODE || 'test' }}
+      QURAN_AUDIO_MODE: "qf"
       ADVANCE_AFTER_RENDER: ${{ vars.ADVANCE_AFTER_RENDER || 'true' }}
       YOUTUBE_UPLOAD_ENABLED: ${{ vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
       AUDIO_RIGHTS_CONFIRMED: ${{ vars.AUDIO_RIGHTS_CONFIRMED || 'false' }}
@@ -60,6 +61,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify production audio configuration
+        run: |
+          test -n "$QF_CLIENT_ID"
+          test -n "$QF_CLIENT_SECRET"
+          python - <<'PY'
+          import os
+          mode = os.environ.get('QURAN_AUDIO_MODE', '').strip().lower()
+          if mode != 'qf':
+              raise SystemExit('Production render requires QURAN_AUDIO_MODE=qf')
+          print('Production Quran audio mode confirmed.')
+          PY
+
       - name: Verify Python files
         run: |
           python -m compileall -q main.py generator
@@ -84,6 +97,10 @@ jobs:
           assert manifest['channel_name'] == 'التجارة مع الله'
           assert manifest['watermark_enabled'] is True
           assert manifest['background_theme']
+          assert manifest['audio_mode'] == 'qf'
+          assert manifest['test_mode'] is False
+          assert manifest['exact_ayah_sync'] is True
+          assert manifest['reciter']['name']
           print(json.dumps(manifest, ensure_ascii=False, indent=2))
           PY
           ls -lh output/
