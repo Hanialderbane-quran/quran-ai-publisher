@@ -30,6 +30,10 @@ def validate(segment: dict, seo: dict) -> bool:
             errors.append("An ayah has empty Quran text.")
         if len({str(item.get("surah", "")) for item in ayahs}) != 1:
             errors.append("One segment cannot cross between surahs.")
+        if str(segment.get("surah")) == "الفاتحة":
+            ayah_numbers = [int(item.get("ayah", -1)) for item in ayahs]
+            if ayah_numbers != list(range(1, 8)):
+                errors.append("Surah Al-Fatiha must contain all seven ayahs.")
 
     if not str(seo.get("title", "")).strip():
         errors.append("Missing title.")
@@ -83,15 +87,17 @@ def validate_output(video_path: str, manifest: dict) -> bool:
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
     if manifest.get("visual_engine_version") not in ALLOWED_ENGINES:
-        errors.append("Expected local animated background engine was not used.")
+        errors.append("Expected animated background engine was not used.")
     if manifest.get("channel_name") != EXPECTED_CHANNEL:
         errors.append("Channel identity is missing or incorrect.")
     if manifest.get("watermark_enabled") is not True:
         errors.append("Channel watermark is not enabled.")
-    if not str(manifest.get("background_theme", "")).startswith("royal_mosque_"):
-        errors.append("Approved local mosque background was not used.")
-    if manifest.get("background_source") != "generated-local":
-        errors.append("Background source must be generated-local.")
+    if not str(manifest.get("background_theme", "")).startswith("real_mosque_"):
+        errors.append("A real mosque footage background was not used.")
+    if manifest.get("background_source") != "pixabay-real-footage":
+        errors.append("Background source must be licensed real footage.")
+    if manifest.get("background_license") != "Pixabay Content License":
+        errors.append("Background license metadata is missing.")
     if manifest.get("audio_mode") != "cdn":
         errors.append("Production audio mode must be cdn.")
     if manifest.get("test_mode") is not False:
@@ -100,6 +106,9 @@ def validate_output(video_path: str, manifest: dict) -> bool:
         errors.append("Exact ayah synchronization is required.")
     if not str(manifest.get("reciter", {}).get("name", "")).strip():
         errors.append("Reciter name is missing.")
+    if str(manifest.get("surah")) == "الفاتحة":
+        if int(manifest.get("start_ayah", 0)) != 1 or int(manifest.get("end_ayah", 0)) != 7:
+            errors.append("Rendered Al-Fatiha video is incomplete.")
 
     print("========== POST-RENDER QUALITY ==========")
     if errors:
