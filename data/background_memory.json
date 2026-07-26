@@ -1,7 +1,8 @@
 {
   "recent_backgrounds": [
     "assets/backgrounds/quran_night_water.png",
-    "desert_twilight"
+    "desert_twilight",
+    "islamic_lanterns"
   ],
   "history": [
     {
@@ -10,6 +11,10 @@
     },
     {
       "background": "desert_twilight",
+      "segment_id": "c25cfc0e295f93879b94"
+    },
+    {
+      "background": "islamic_lanterns",
       "segment_id": "c25cfc0e295f93879b94"
     }
   ]
