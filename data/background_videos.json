@@ -1,20 +1,38 @@
 [
   {
-    "id": "kaaba_night",
-    "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kaaba%20at%20Night%20%28video%29%20-%20Sep%2028%2C%202016.webm?width=1280",
-    "source": "Wikimedia Commons",
-    "license": "Creative Commons"
+    "id": "royal_mosque_burgundy",
+    "path": "assets/background_videos/royal_mosque_burgundy.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
   },
   {
-    "id": "bursa_mosque_timelapse",
-    "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Bursa%20Ulucamii%20%28Grand%20Mosque%29%20Timelapse.webm?width=1280",
-    "source": "Wikimedia Commons",
-    "license": "Creative Commons"
+    "id": "royal_mosque_navy",
+    "path": "assets/background_videos/royal_mosque_navy.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
   },
   {
-    "id": "clouds_timelapse",
-    "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Wolken%20Zeitraffer%20-%20Clouds%20Timelapse%20%28Royalty%20Free%29%20%28Kostenlos%29%201280x720p%2060FPS.webm?width=1280",
-    "source": "Wikimedia Commons",
-    "license": "Creative Commons"
+    "id": "royal_mosque_emerald",
+    "path": "assets/background_videos/royal_mosque_emerald.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
+  },
+  {
+    "id": "royal_mosque_twilight",
+    "path": "assets/background_videos/royal_mosque_twilight.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
+  },
+  {
+    "id": "royal_mosque_dawn",
+    "path": "assets/background_videos/royal_mosque_dawn.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
+  },
+  {
+    "id": "royal_mosque_blue",
+    "path": "assets/background_videos/royal_mosque_blue.mp4",
+    "source": "generated-local",
+    "license": "project-owned"
   }
 ]
