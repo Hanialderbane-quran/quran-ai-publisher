@@ -1,6 +1,6 @@
 {
   "project_name": "Quran AI Publisher",
-  "channel_name": "قناة القرآن الكريم",
+  "channel_name": "التجارة مع الله",
   "channel_type": "quran",
   "language": "ar",
 
@@ -52,6 +52,9 @@
 
   "visual_identity": {
     "theme": "professional_quran",
+    "brand_name": "التجارة مع الله",
+    "show_brand_watermark": true,
+    "watermark_position": "bottom_right",
     "respectful_motion_only": true,
     "animated_backgrounds": true,
     "prevent_recent_background_reuse": true,
