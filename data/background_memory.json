@@ -1,9 +1,9 @@
 {
   "recent_backgrounds": [
-    "desert_twilight",
     "islamic_lanterns",
     "mosque_lake",
-    "mosque_sunset"
+    "mosque_sunset",
+    "royal_mosque_dawn"
   ],
   "history": [
     {
@@ -24,6 +24,10 @@
     },
     {
       "background": "mosque_sunset",
+      "segment_id": "ebb8d063f971b37ac8e5"
+    },
+    {
+      "background": "royal_mosque_dawn",
       "segment_id": "ebb8d063f971b37ac8e5"
     }
   ]
