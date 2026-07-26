@@ -16,6 +16,7 @@ from generator.uploader import upload_if_enabled
 from generator.video_engine import build_video
 
 MANIFEST_FILE = Path("output/manifest.json")
+PROGRESS_FILE = Path("data/progress.json")
 
 
 def load_config() -> dict:
@@ -40,6 +41,24 @@ def read_manifest() -> dict:
     return data
 
 
+def reset_progress_for_retry() -> None:
+    progress = {
+        "schema_version": 1,
+        "mode": "complete_quran",
+        "last_completed_global_ayah": 0,
+        "pending_segment": None,
+        "completed_quran_cycles": 0,
+        "last_completed_at": None,
+        "last_error": None,
+    }
+    PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROGRESS_FILE.write_text(
+        json.dumps(progress, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print("Progress reset to the first available ayah; retrying selection once.")
+
+
 def start() -> None:
     print("========== Quran AI Publisher ==========")
     segment_id = None
@@ -54,8 +73,11 @@ def start() -> None:
 
         result = think()
         if result is None:
+            reset_progress_for_retry()
+            result = think()
+        if result is None:
             raise RuntimeError(
-                "No Quran segment was selected. The dataset may be incomplete or progress may be past the available ayahs."
+                "No Quran segment was selected after resetting progress. Check data/quran.json."
             )
 
         segment = result["segment"]
