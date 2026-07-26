@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 EXPECTED_CHANNEL = "التجارة مع الله"
-ALLOWED_ENGINES = {"cinematic_mosque_5.0"}
+ALLOWED_ENGINES = {"local_background_library_6.0"}
 
 
 def validate(segment: dict, seo: dict) -> bool:
@@ -68,7 +68,7 @@ def validate_output(video_path: str, manifest: dict) -> bool:
     path = Path(video_path)
     preview = Path(str(manifest.get("preview_path", "")))
 
-    if not path.is_file() or path.stat().st_size < 10_000:
+    if not path.is_file() or path.stat().st_size < 100_000:
         errors.append("Video file is missing or too small.")
     else:
         if not has_stream(video_path, "v"):
@@ -83,13 +83,15 @@ def validate_output(video_path: str, manifest: dict) -> bool:
     if not manifest.get("segment_id"):
         errors.append("Manifest segment_id is missing.")
     if manifest.get("visual_engine_version") not in ALLOWED_ENGINES:
-        errors.append("Expected cinematic mosque visual engine was not used.")
+        errors.append("Expected local animated background engine was not used.")
     if manifest.get("channel_name") != EXPECTED_CHANNEL:
         errors.append("Channel identity is missing or incorrect.")
     if manifest.get("watermark_enabled") is not True:
         errors.append("Channel watermark is not enabled.")
-    if not str(manifest.get("background_theme", "")).strip():
-        errors.append("Background theme is missing from manifest.")
+    if not str(manifest.get("background_theme", "")).startswith("royal_mosque_"):
+        errors.append("Approved local mosque background was not used.")
+    if manifest.get("background_source") != "generated-local":
+        errors.append("Background source must be generated-local.")
     if manifest.get("audio_mode") != "cdn":
         errors.append("Production audio mode must be cdn.")
     if manifest.get("test_mode") is not False:
