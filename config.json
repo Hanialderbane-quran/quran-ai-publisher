@@ -3,19 +3,16 @@
   "channel_name": "التجارة مع الله",
   "channel_type": "quran",
   "language": "ar",
-
   "publishing": {
     "enabled": true,
     "default_privacy": "private",
     "publish_only_after_validation": true,
-
     "shorts": {
-      "enabled": true,
-      "videos_per_day": 2,
+      "enabled": false,
+      "videos_per_day": 0,
       "minimum_duration_seconds": 8,
       "maximum_duration_seconds": 60
     },
-
     "long_videos": {
       "enabled": true,
       "videos_per_week": 4,
@@ -29,18 +26,16 @@
       ]
     }
   },
-
   "quran_content": {
     "complete_quran_required": true,
     "use_consecutive_ayahs": true,
     "split_only_between_ayahs": true,
-    "allow_single_ayah_only_when_long": true,
+    "allow_single_ayah_only_when_long": false,
     "prevent_repeated_segments": true,
     "verify_surah_name": true,
     "verify_ayah_numbers": true,
     "verify_quran_text": true
   },
-
   "audio_safety": {
     "require_approved_source": true,
     "block_unknown_reciters": true,
@@ -49,9 +44,8 @@
     "allow_background_music": false,
     "allow_sound_effects": false
   },
-
   "visual_identity": {
-    "theme": "professional_quran",
+    "theme": "luxury_islamic_broadcast",
     "brand_name": "التجارة مع الله",
     "show_brand_watermark": true,
     "watermark_position": "bottom_right",
@@ -60,14 +54,13 @@
     "prevent_recent_background_reuse": true,
     "minimum_background_gap": 30,
     "allowed_background_categories": [
-      "mosques",
+      "luxury_mihrab",
+      "mosque_dom es",
       "islamic_architecture",
-      "sky",
-      "clouds",
-      "nature",
-      "mountains",
-      "water",
-      "islamic_patterns"
+      "lanterns",
+      "ornamental_patterns",
+      "deep_maroon",
+      "navy_gold"
     ],
     "blocked_motion_styles": [
       "fast_zoom",
@@ -82,7 +75,6 @@
     "show_quran_text_clearly": true,
     "use_full_diacritics": true
   },
-
   "quality_and_safety": {
     "block_upload_on_any_error": true,
     "validate_audio": true,
